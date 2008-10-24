@@ -9,12 +9,13 @@ use Data::Util qw(:all);
 
 my $o = [];
 
+print "Perl $] on $^O\n";
+
 print "Params::Util::_ARRAY0() vs. Scalar::Util::Ref::is_array_ref() vs. ref()\n";
 
 foreach my $o([], {}, bless({}, 'Foo'), undef){
 	print "\nFor ", neat($o), "\n";
 
-	my $i;
 	cmpthese timethese -1 => {
 		'_ARRAY0' => sub{
 			for(1 .. 10){

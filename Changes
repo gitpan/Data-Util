@@ -1,5 +1,9 @@
 Revision history for Data-Util
 
+0.03 Fri Oct 24 12:17:13 2008
+	- remove unused code
+	- a bit of optimization (using 'inline' effectively)
+
 0.02 Fri Oct 24 09:10:31 2008
 	- derived from Scalar::Util::Ref
 	- add "-fast_isa" subdirective

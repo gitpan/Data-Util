@@ -21,26 +21,19 @@ BEGIN{
 	our @ISA = qw(Foo);
 	package Foo::X::X;
 	our @ISA = qw(Foo::X);
-	package Foo::X::X::X;
-	our @ISA = qw(Foo::X::X);
 
 	package Unrelated;
 	our @ISA = qw(Base);
-
-	package SpecificIsa;
-	our @ISA = qw(Base);
-	sub isa{
-		$_[1] eq 'Foo';
-	}
 }
 
+print "Perl $] on $^O\n";
 print "Benchmark: UNIVERSAL::isa vs. Data::Util::fast_isa\n";
 
-foreach my $x (Foo->new, Foo::X::X::X->new, Unrelated->new, SpecificIsa->new){
+foreach my $x (
+#	qw(Foo Foo::X::X Unrelated),
+	Foo->new, Foo::X::X->new, Unrelated->new){
+
 	print "\nFor ", neat($x), "\n";
-
-	my $i = 0;
-
 	cmpthese -1 => {
 		'original' => sub{
 			for(1 .. 10){
@@ -58,3 +51,4 @@ foreach my $x (Foo->new, Foo::X::X::X->new, Unrelated->new, SpecificIsa->new){
 		},
 	};
 }
+__END__

@@ -6,6 +6,9 @@ use Benchmark qw(:all);
 
 use Data::Util qw(:all);
 
+
+print "Perl $] on $^O\n";
+
 my $pkg = 'Data::Util';
 
 cmpthese timethese -1 => {

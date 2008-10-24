@@ -31,6 +31,8 @@ BEGIN{
 	}
 }
 
+print "Perl $] on $^O\n";
+
 foreach my $x (Foo->new, Foo::X::X::X->new, Unrelated->new, undef, {}){
 	print 'For ', neat($x), "\n";
 

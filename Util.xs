@@ -8,12 +8,11 @@
 #include "mro_compat.h"
 #include "str_util.h"
 
-#if PERL_REVISION == 5 && PERL_VERSION >= 10
-#define HAS_LEXICAL_HH
-#endif
-
-
 #define my_SvNIOK(sv) (SvFLAGS(sv) & (SVf_IOK|SVf_NOK|SVp_IOK|SVp_NOK))
+
+#ifndef SvRXOK
+#define SvRXOK(sv) (SvROK(sv) && (SvTYPE(SvRV(sv)) == SVt_PVMG) && mg_find(SvRV(sv), PERL_MAGIC_qr))
+#endif
 
 
 #define MY_CXT_KEY "Data::Util::_guts" XS_VERSION
@@ -21,8 +20,6 @@
 
 typedef struct{
 	GV* universal_isa;
-
-	UV ins_depth;
 
 	GV* error_handler;
 } my_cxt_t;
@@ -122,7 +119,7 @@ my_croak(pTHX_ const char* const fmt, ...){
 	va_end(args);
 }
 
-static inline void*
+static void*
 has_amagic_converter(pTHX_ SV* const sv, const my_ref_t t){
 	const AMT* const amt = (AMT*)mg_find((SV*)SvSTASH(SvRV(sv)), PERL_MAGIC_overload_table)->mg_ptr;
 	int o = 0;
@@ -153,7 +150,7 @@ has_amagic_converter(pTHX_ SV* const sv, const my_ref_t t){
 	return amt->table[o];
 }
 
-static bool
+static inline bool
 my_ref_type(pTHX_ SV* const sv, const my_ref_t t){
 	if(!SvROK(sv)){
 		return FALSE;
@@ -163,7 +160,7 @@ my_ref_type(pTHX_ SV* const sv, const my_ref_t t){
 		if(SvAMAGIC(sv) && has_amagic_converter(aTHX_ sv, t)){
 			return TRUE;
 		}
-		else if(t == T_RE && mg_find(SvRV(sv), PERL_MAGIC_qr)){
+		else if(t == T_RE && SvRXOK(sv)){
 			return TRUE;
 		}
 		else{
