@@ -1,0 +1,14 @@
+Revision history for Data-Util
+
+0.02 Fri Oct 24 09:10:31 2008
+	- derived from Scalar::Util::Ref
+	- add "-fast_isa" subdirective
+		which makes UNIVERSAL::isa() faster
+	- remove "instanceof" operator
+	- many optimizations
+	- fix some bugs
+
+0.01 Sat Oct  4 11:32:36 2008
+	- original version; created by Module::Starter
+		started as Scalar::Util::Ref
+

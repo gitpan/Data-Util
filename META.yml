@@ -1,0 +1,26 @@
+---
+abstract: 'A selection of utilities for data and data types'
+author:
+  - 'Goro Fuji <gfuji(at)cpan.org>'
+build_requires:
+  Test::Exception: 0.27
+  Test::More: 0.62
+configure_requires:
+  ExtUtils::MakeMaker: 6.44
+distribution_type: module
+generated_by: 'Module::Install version 0.77'
+license: perl
+meta-spec:
+  url: http://module-build.sourceforge.net/META-spec-v1.4.html
+  version: 1.4
+name: Data-Util
+no_index:
+  directory:
+    - inc
+    - t
+requires:
+  XSLoader: 0.06
+  perl: 5.8.1
+resources:
+  license: http://dev.perl.org/licenses/
+version: 0.02

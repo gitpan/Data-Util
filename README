@@ -1,0 +1,35 @@
+NAME
+
+	Data::Util - A selection of type-related utilities
+
+SYNOPSIS
+
+	use Data::Util qw(:all);
+
+	use Data::Util -fast_isa;
+
+DESCRIPTION
+
+	This module provides utility subroutines related to data types.
+
+	See "perldoc Data::Util" for the rest of the document.
+
+DEPENDENCIES
+
+	perl 5.8.1 or later, and a C compiler.
+
+INSTALLATION
+
+	To install this module, run the following commands:
+
+	perl Makefile.PL
+	make
+	make test
+	make install
+
+COPYRIGHT AND LICENCE
+
+	Copyright (c) 2008 Goro Fuji, Some rights reserved.
+
+	This program is free software; you can redistribute it and/or
+	modify it under the same terms as Perl itself.
