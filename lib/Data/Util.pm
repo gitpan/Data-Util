@@ -4,9 +4,9 @@ use 5.008_001;
 use strict;
 use warnings;
 
-our $VERSION = '0.03';
+our $VERSION = '0.04';
 
-use Carp ();
+use Carp (); # for default fail handler
 use Exporter ();
 use XSLoader;
 XSLoader::load(__PACKAGE__, $VERSION);
@@ -21,8 +21,6 @@ our @EXPORT_OK = qw(
 	anon_scalar neat
 
 	get_stash
-
-	is_method set_method_attribute
 );
 our %EXPORT_TAGS = (
 	all => \@EXPORT_OK,
@@ -37,30 +35,24 @@ our %EXPORT_TAGS = (
 	)],
 );
 
-our $ErrorHandler = \&Carp::confess;
-
 sub import{
-	my @subdirectives;
-	@_ = grep{
-		if(/^-/){
-			push @subdirectives, $_;
-			0;
-		}
-		else{
-			1;
-		}
-	} @_;
+	my $i = 0;
+	while($i < @_){
+		my $cmd = $_[$i];
 
-	foreach my $subdirective(@subdirectives){
-		if($subdirective eq '-fast_isa'){
+		if($cmd eq '-fast_isa'){
 			no warnings 'redefine';
 			*UNIVERSAL::isa = \&fast_isa;
+			splice @_, $i, 1;
+		}
+		elsif($cmd eq '-fail_handler'){
+			_fail_handler(scalar(caller), $_[$i+1]);
+			splice @_, $i, 2;
 		}
 		else{
-			Carp::croak(qq{Unrecognized subdirective "$subdirective"});
+			$i++;
 		}
 	}
-
 	goto &Exporter::import;
 }
 
@@ -74,7 +66,7 @@ Data::Util - A selection of utilities for data and data types
 
 =head1 VERSION
 
-This document describes Data::Util version 0.03
+This document describes Data::Util version 0.04
 
 =head1 SYNOPSIS
 
@@ -124,6 +116,8 @@ This module provides utility subroutines for data and data types.
 Check functions are introduced by the C<:check> tag, which check the argument
 type.
 
+These functions also checks overloading magic, e.g. C<${}> for a SCALAR reference.
+
 =over 4
 
 =item is_scalar_ref($x)
@@ -160,12 +154,15 @@ but significantly faster and easy to use.
 
 =back
 
+
 =head2 Validating functions
 
 Validating functions are introduced by the C<:validate> tag, and returns the
 first argument C<$x>.
-They are like the C<:check> functions, but they will die if the argument type
+These are like the C<:check> functions but dies if the argument type
 is not the wanted type.
+
+These functions also checks overloading magic, e.g. C<${}> for a SCALAR reference.
 
 =over 4
 
@@ -218,16 +215,10 @@ Returns a neat string that is suitable to display.
 
 =item get_stash(package_name)
 
-Returns the stash of I<package_name>.
+Returns the symbol table hash (also known as B<stash>) of I<package_name>.
 
-It is equivalent to C<< do{ no strict 'refs'; \%{$package_name . '::'} } >>,
+It is similar to C<< do{ no strict 'refs'; \%{$package_name . '::'} } >>,
 but does B<not> create the stash if I<package_name> does not exist.
-
-=item is_method(coderef)
-
-=item set_method_attribute(coderef, bool)
-
-Gets/sets the C<:method> attribute of I<coderef>.
 
 =back
 
@@ -235,12 +226,21 @@ Gets/sets the C<:method> attribute of I<coderef>.
 
 =over 4
 
-=item -fast_isa subdirective
+=item -fast_isa
 
 Replaces C<UNIVERSAL::isa()> by C<fast_isa>, which is even faster.
 
 This alternative subroutine passes all the F<PERL-DIST/t/op/universal.t>
 (included as F<Data-Util/t/10_fast_isa.t>).
+
+This subdirective is global-scoped.
+
+=item -fail_handler => \&handler
+
+Set a custom fail handler. The handler is called when a
+validation fails.
+
+This subdirective is package-scoped.
 
 =back
 

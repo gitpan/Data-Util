@@ -5,13 +5,15 @@
 
 #include "ppport.h"
 
+#include "c99portability.h"
+
 #include "mro_compat.h"
 #include "str_util.h"
 
 #define my_SvNIOK(sv) (SvFLAGS(sv) & (SVf_IOK|SVf_NOK|SVp_IOK|SVp_NOK))
 
 #ifndef SvRXOK
-#define SvRXOK(sv) (SvROK(sv) && (SvTYPE(SvRV(sv)) == SVt_PVMG) && mg_find(SvRV(sv), PERL_MAGIC_qr))
+#define SvRXOK(sv) ((bool)(SvROK(sv) && (SvTYPE(SvRV(sv)) == SVt_PVMG) && mg_find(SvRV(sv), PERL_MAGIC_qr)))
 #endif
 
 
@@ -21,7 +23,8 @@
 typedef struct{
 	GV* universal_isa;
 
-	GV* error_handler;
+	CV* default_fail_handler;
+	HV* fail_handler_map;
 } my_cxt_t;
 START_MY_CXT;
 
@@ -35,91 +38,199 @@ typedef enum{
 	T_GV,
 	T_IO,
 	T_FM,
-	T_RE,
+	T_RX,
 	T_OBJECT
 } my_ref_t;
 
+static const char* const ref_names[] = {
+	NULL, /* NOT_REF */
+	"a SCALAR",
+	"an ARRAY",
+	"a HASH",
+	"a CODE",
+	"a GLOB",
+	NULL, /* IO */
+	"a FORMAT",
+	NULL, /* RE */
+	NULL  /* OBJECT */
+};
+
 
 #define neat(x) my_neat(aTHX_ x)
-static const char*
-my_neat(pTHX_ SV* x){
+static void
+my_neat_cat(pTHX_ SV* dsv, SV* x, int level){
+
+	if(level > 2){
+		sv_catpvs(dsv, "...");
+		return;
+	}
+
 	if(SvROK(x)){
 		x = SvRV(x);
 
 		if(SvOBJECT(x)){
-			return Perl_form(aTHX_ "%s=%s(0x%p)",
+			Perl_sv_catpvf(aTHX_ dsv, "%s=%s(0x%p)",
 				sv_reftype(x, TRUE), sv_reftype(x, FALSE), x);
+			return;
+		}
+		else if(SvTYPE(x) == SVt_PVAV){
+			SV** svp;
+			I32 len = av_len((AV*)x);
+
+			sv_catpvs(dsv, "[");
+			if(len >= 0){
+				svp = av_fetch((AV*)x, 0, FALSE);
+
+				if(*svp){
+					my_neat_cat(aTHX_ dsv, *svp, level+1);
+				}
+				else{
+					sv_catpvs(dsv, "undef");
+				}
+				if(len > 0){
+					sv_catpvs(dsv, ", ...");
+				}
+			}
+			sv_catpvs(dsv, "]");
+		}
+		else if(SvTYPE(x) == SVt_PVHV){
+			I32 klen;
+			char* key;
+			SV* val;
+
+			hv_iterinit((HV*)x);
+			val = hv_iternextsv((HV*)x, &key, &klen);
+
+			sv_catpvs(dsv, "{");
+			if(val){
+				bool need_quote = TRUE;
+				if(isIDFIRST(*key)){
+					const char* k   = key;
+					const char* end = key + klen - 1 /*'\0'*/;
+
+					need_quote = FALSE;
+					while(k != end){
+						++k;
+						if(!isALNUM(*k)){
+							need_quote = TRUE;
+							break;
+						}
+					}
+				}
+				if(need_quote){
+					SV* sv = newSV(klen + 5);
+					sv_2mortal(sv);
+					key = pv_display(sv, key, klen, klen, klen);
+				}
+				Perl_sv_catpvf(aTHX_ dsv, "%s => ", key);
+				my_neat_cat(aTHX_ dsv, val, level+1);
+
+				if(hv_iternext((HV*)x)){
+					sv_catpvs(dsv, ", ...");
+				}
+			}
+
+			sv_catpvs(dsv, "}");
 		}
 		else{
-			return Perl_form(aTHX_ "%s(0x%p)", sv_reftype(x, FALSE), x);
+			Perl_sv_catpvf(aTHX_ dsv, "%s(0x%p)", sv_reftype(x, FALSE), x);
 		}
+	}
+	else if(SvTYPE(x) == SVt_PVGV){
+		sv_catsv(dsv, x);
 	}
 	else if(SvOK(x)){
 		if(my_SvNIOK(x)){
-			return Perl_form(aTHX_ "%"NVgf, SvNV(x));
+			Perl_sv_catpvf(aTHX_ dsv, "%"NVgf, SvNV(x));
 		}
 		else{
 			STRLEN cur;
 			char* const pv = SvPV(x, cur);
 			static const STRLEN pvlim = 15;
-			SV* dsv = newSV(pvlim + 5);
-
-			sv_2mortal(dsv);
-
-			return pv_display(dsv, pv, cur, cur, pvlim);
+			SV* sv = newSV(pvlim + 5);
+			sv_2mortal(sv);
+			pv_display(sv, pv, cur, cur, pvlim);
+			sv_catsv(dsv, sv);
 		}
 	}
-	else if(SvTYPE(x) == SVt_PVGV){
-		return SvPV_nolen_const(x);
+	else{
+		sv_catpvs(dsv, "undef");
 	}
+}
 
-	return "undef";
+static const char*
+my_neat(pTHX_ SV* x){
+	SV* const dsv = newSV(100);
+	sv_2mortal(dsv);
+	sv_setpvs(dsv, "");
+
+	ENTER;
+
+	my_neat_cat(aTHX_ dsv, x, 0);
+
+	LEAVE;
+
+	return SvPVX(dsv);
 }
 
 static void
 my_croak(pTHX_ const char* const fmt, ...){
 	dMY_CXT;
-	SV* handler = GvSV(MY_CXT.error_handler);
+	SV* handler;
+	SV** svp = NULL;
+
+	const char* stashpv;
+
+	SV* mess;
+	dSP;
 
 	va_list args;
 	va_start(args, fmt);
 
-	if(handler && SvOK(handler)){
-		SV* mess;
-		HV* stash;
-		GV* gv;
-		CV* cv;
-		dSP;
+	assert(PL_curcop != NULL);
+	stashpv = CopSTASHPV(PL_curcop);
+	assert(stashpv != NULL);
 
-		SAVETMPS;
-		ENTER;
-
-		cv = sv_2cv(handler, &stash, &gv, FALSE);
-
-		mess = vnewSVpvf(fmt, &args);
-		sv_2mortal(mess);
-
-
-		PUSHMARK(SP);
-		PUSHs(mess);
-		PUTBACK;
-
-		call_sv((SV*)cv, G_SCALAR);
-
-		sv_setsv(ERRSV, POPs);
-		Perl_croak(aTHX_ NULL);
-
-		FREETMPS;
-		LEAVE;
-
+	if(!MY_CXT.fail_handler_map){
+		MY_CXT.fail_handler_map = newHV();
+	}
+	svp = hv_fetch(MY_CXT.fail_handler_map,
+		stashpv, strlen(stashpv), FALSE);
+	if(svp){
+		assert(SvRV(*svp));
+		handler = SvRV(*svp);
 	}
 	else{
-		vcroak(fmt, &args);
+		handler = (SV*)MY_CXT.default_fail_handler; /* \&Carp::confess */
 	}
+
+	assert(handler != NULL);
+	assert(SvTYPE(handler) == SVt_PVCV);
+
+	SAVETMPS;
+	ENTER;
+
+	mess = vnewSVpvf(fmt, &args);
+	sv_2mortal(mess);
+
+	PUSHMARK(SP);
+	PUSHs(mess);
+	PUTBACK;
+
+	call_sv(handler, G_SCALAR);
+
+	/* when the handler returned */
+	sv_setsv(ERRSV, POPs);
+	Perl_croak(aTHX_ NULL); /* re-throw */
+
+	/* not reached */
+	FREETMPS;
+	LEAVE;
+
 	va_end(args);
 }
 
-static void*
+static bool
 has_amagic_converter(pTHX_ SV* const sv, const my_ref_t t){
 	const AMT* const amt = (AMT*)mg_find((SV*)SvSTASH(SvRV(sv)), PERL_MAGIC_overload_table)->mg_ptr;
 	int o = 0;
@@ -144,10 +255,10 @@ has_amagic_converter(pTHX_ SV* const sv, const my_ref_t t){
 		o = to_gv_amg;
 		break;
 	default:
-		return NULL;
+		return FALSE;
 	}
 
-	return amt->table[o];
+	return !!amt->table[o];
 }
 
 static inline bool
@@ -157,11 +268,11 @@ my_ref_type(pTHX_ SV* const sv, const my_ref_t t){
 	}
 
 	if(SvOBJECT(SvRV(sv))){
-		if(SvAMAGIC(sv) && has_amagic_converter(aTHX_ sv, t)){
-			return TRUE;
+		if(t == T_RX){ /* regex? */
+			return SvRXOK(sv);
 		}
-		else if(t == T_RE && SvRXOK(sv)){
-			return TRUE;
+		if(SvAMAGIC(sv)){
+			return has_amagic_converter(aTHX_ sv, t);
 		}
 		else{
 			return FALSE;
@@ -292,8 +403,10 @@ initialize_my_cxt(pTHX_ my_cxt_t* const cxt){
 	cxt->universal_isa = CvGV(get_cv("UNIVERSAL::isa", GV_ADD));
 	SvREFCNT_inc_simple_void_NN(cxt->universal_isa);
 
-	cxt->error_handler = gv_fetchpv("Data::Util::ErrorHandler", TRUE, SVt_PV);
-	SvREFCNT_inc_simple_void_NN(cxt->error_handler);
+	cxt->default_fail_handler = get_cv("Carp::confess", TRUE);
+	SvREFCNT_inc_simple_void_NN(cxt->default_fail_handler);
+
+	cxt->fail_handler_map = NULL;
 }
 
 
@@ -324,7 +437,7 @@ ALIAS:
 	is_hash_ref   = T_HV
 	is_code_ref   = T_CV
 	is_glob_ref   = T_GV
-	is_regex_ref  = T_RE
+	is_regex_ref  = T_RX
 PPCODE:
 	SvGETMAGIC(x);
 	ST(0) = my_ref_type(aTHX_ x, (my_ref_t)ix) ?&PL_sv_yes : &PL_sv_no;
@@ -339,14 +452,14 @@ ALIAS:
 	hash_ref   = T_HV
 	code_ref   = T_CV
 	glob_ref   = T_GV
-	regex_ref  = T_RE
+	regex_ref  = T_RX
 PPCODE:
 	SvGETMAGIC(x);
 	if(my_ref_type(aTHX_ x, (my_ref_t)ix)){
 		XSRETURN(1); /* return the first value */
 	}
-	my_croak(aTHX_ "Validation for %s failed with value %s",
-		GvNAME(CvGV(cv)), neat(x));
+	my_croak(aTHX_ "Validation failed: you must supply %s reference, not %s,",
+		ref_names[ix], neat(x));
 
 void
 is_instance(x, klass)
@@ -371,10 +484,8 @@ PPCODE:
 		/* ST(0) = x; */
 		XSRETURN(1);
 	}
-	/* else */
-	my_croak(aTHX_ "Validation for %s failed with value %s",
-		SvPV_nolen_const(klass), neat(x));
-
+	my_croak(aTHX_ "Validation failed: you must supply an instance of %"SVf,
+		klass, neat(x));
 
 bool
 fast_isa(sv, name)
@@ -386,7 +497,7 @@ CODE:
 	if (!SvOK(sv) || !(SvROK(sv) || (SvPOK(sv) && SvCUR(sv))
 		|| (SvGMAGICAL(sv) && SvPOKp(sv) && SvCUR(sv))))
 		XSRETURN_UNDEF;
-
+	
 	SvGETMAGIC(sv);
 	if (SvROK(sv)) {
 		sv = SvRV(sv);
@@ -398,7 +509,6 @@ CODE:
 	else {
 		stash = gv_stashsv(sv, FALSE);
 	}
-
 	RETVAL = stash ? isa_lookup(stash, name) : FALSE;
 OUTPUT:
 	RETVAL
@@ -426,18 +536,29 @@ CODE:
 OUTPUT:
 	RETVAL
 
-bool
-is_method(code)
+SV*
+_fail_handler(pkg, code = NULL)
+	SV* pkg
 	CV* code
+PREINIT:
+	dMY_CXT;
+	STRLEN len;
+	const char* pv = SvPV_const(pkg, len);
+	SV** old;
 CODE:
-	RETVAL = CvMETHOD(code);
+	if(!MY_CXT.fail_handler_map){
+		MY_CXT.fail_handler_map = newHV();
+	}
+	old = hv_fetch(MY_CXT.fail_handler_map, pv, len, FALSE);
+	if(code){
+		hv_store(MY_CXT.fail_handler_map,
+			pv, len, newRV_inc((SV*)code), 0U/*hash*/);
+	}
+	if(!old){
+		XSRETURN_UNDEF;
+	}
+	RETVAL = *old;
+	SvREFCNT_inc_simple_void_NN(RETVAL);
 OUTPUT:
 	RETVAL
-
-void
-set_method_attribute(code, is_method)
-	CV* code
-	bool is_method
-CODE:
-	is_method ? CvMETHOD_on(code) : CvMETHOD_off(code);
 

@@ -1,7 +1,7 @@
 #ifndef SCALAR_UTIL_REF_STR_UTIL_H
 #define SCALAR_UTIL_REF_STR_UTIL_H
 
-#ifdef MY_STR_EQ
+#ifdef INLINE_STR_EQ
 
 #undef strnEQ
 static inline int
@@ -32,6 +32,6 @@ strEQ(const char* x, const char* y){
 	return TRUE; /* not reached */
 }
 
-#endif /* !MY_STR_EQ */
+#endif /* !INLINE_STR_EQ */
 
 #endif

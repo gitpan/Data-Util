@@ -1,7 +1,7 @@
 #!perl -w
 use strict;
 
-use Test::More tests => 43;
+use Test::More tests => 44;
 
 use Test::Exception;
 
@@ -50,45 +50,49 @@ ok scalar_ref(\''), 'scalar_ref';
 
 throws_ok{
 	scalar_ref([]);
-} qr/Validation for scalar_ref failed/;
+} qr/Validation failed: you must supply a SCALAR reference, not \[\]/;
 
 throws_ok{
 	scalar_ref(undef);
-} qr/Validation for scalar_ref failed/;
+} qr/Validation failed/;
 
 throws_ok{
 	scalar_ref(42);
-} qr/Validation for scalar_ref failed/;
+} qr/Validation failed/;
 
 throws_ok{
 	scalar_ref('SCALAR');
-} qr/Validation for scalar_ref failed/;
+} qr/Validation failed/;
+
+throws_ok{
+	scalar_ref(\*ok);
+} qr/Validation failed/;
 
 ok array_ref([]), 'array_ref';
 throws_ok{
 	array_ref({});
-} qr/Validation for array_ref failed/;
+} qr/Validation failed/;
 
 ok hash_ref({}), 'hash_ref';
 throws_ok{
 	hash_ref([]);
-} qr/Validation for hash_ref failed/;
+} qr/Validation failed/;
 
 
 ok code_ref(sub{}), 'code_ref';
 throws_ok{
 	code_ref([]);
-} qr/Validation for code_ref failed/;
+} qr/Validation failed/;
 
 ok glob_ref(gensym()), 'glob_ref';
 throws_ok{
 	glob_ref('*glob');
-} qr/Validation for glob_ref failed/;
+} qr/Validation failed/;
 
 ok regex_ref(qr/foo/), 'regex_ref';
 throws_ok{
 	regex_ref([]);
-} qr/Validation for regex_ref failed/;
+} qr/Validation failed/;
 
 dies_ok{
 	is_scalar_ref();

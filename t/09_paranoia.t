@@ -2,7 +2,7 @@
 
 
 use strict;
-use Test::More tests => 25;
+use Test::More tests => 27;
 
 use Data::Util qw(is_instance);
 
@@ -58,6 +58,7 @@ ok is_instance($o, 'main::Foo');
 ok is_instance($o, 'main::main::Foo');
 ok is_instance($o, '::main::main::UNIVERSAL');
 ok!is_instance($o, '::::Foo');
+ok!is_instance($o, 'Fooo');
 ok!is_instance($o, '');
 ok!is_instance($o, 'FoO');
 ok!is_instance($o, 'foo');
@@ -74,6 +75,7 @@ ok is_instance($o, 'Z');
 ok is_instance($o, '::Z');
 
 ok!is_instance($o, 'main');
+ok!is_instance($o, 'main::');
 
 
 ok is_instance(Cx->new, 'Ax');

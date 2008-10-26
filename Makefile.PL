@@ -12,9 +12,8 @@ requires 'XSLoader'   => 0.06;
 test_requires 'Test::More'      => 0.62;
 test_requires 'Test::Exception' => 0.27;
 
-
 WriteMakefile(
-	DEFINE => '-DMY_STR_EQ',
+	DEFINE => '-DINLINE_STR_EQ',
 	OBJECT => '$(O_FILES)',
 	clean => {
 		FILES => q{
