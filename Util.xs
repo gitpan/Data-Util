@@ -11,6 +11,7 @@
 #include "str_util.h"
 
 #define my_SvNIOK(sv) (SvFLAGS(sv) & (SVf_IOK|SVf_NOK|SVp_IOK|SVp_NOK))
+#define my_SvPOK(sv)  (SvFLAGS(sv) & (SVp_POK | SVf_POK))
 
 #ifndef SvRXOK
 #define SvRXOK(sv) ((bool)(SvROK(sv) && (SvTYPE(SvRV(sv)) == SVt_PVMG) && mg_find(SvRV(sv), PERL_MAGIC_qr)))
@@ -58,7 +59,7 @@ static const char* const ref_names[] = {
 
 #define neat(x) my_neat(aTHX_ x)
 static void
-my_neat_cat(pTHX_ SV* dsv, SV* x, int level){
+my_neat_cat(pTHX_ SV* const dsv, SV* x, const int level){
 
 	if(level > 2){
 		sv_catpvs(dsv, "...");
@@ -174,6 +175,10 @@ my_neat(pTHX_ SV* x){
 }
 
 static void
+my_croak(pTHX_ const char* const fmt, ...)
+	__attribute__format__(__printf__, pTHX_1, pTHX_2);
+
+static void
 my_croak(pTHX_ const char* const fmt, ...){
 	dMY_CXT;
 	SV* handler;
@@ -218,6 +223,8 @@ my_croak(pTHX_ const char* const fmt, ...){
 	PUTBACK;
 
 	call_sv(handler, G_SCALAR);
+
+	SPAGAIN;
 
 	/* when the handler returned */
 	sv_setsv(ERRSV, POPs);
@@ -354,7 +361,7 @@ instance_of(pTHX_ SV* const x, SV* const klass){
 	dVAR;
 	/* from pp_bless() in pp.c */
 	if( !SvOK(klass) || (!SvGMAGICAL(klass) && !SvAMAGIC(klass) && SvROK(klass)) ){
-		Perl_croak(aTHX_ "%s supplied as a class name", neat(klass));
+		Perl_croak(aTHX_ "Invalid class name %s supplied", neat(klass));
 	}
 
 	if( !(SvROK(x) && SvOBJECT(SvRV(x))) ){
@@ -440,7 +447,7 @@ ALIAS:
 	is_regex_ref  = T_RX
 PPCODE:
 	SvGETMAGIC(x);
-	ST(0) = my_ref_type(aTHX_ x, (my_ref_t)ix) ?&PL_sv_yes : &PL_sv_no;
+	ST(0) = my_ref_type(aTHX_ x, (my_ref_t)ix) ? &PL_sv_yes : &PL_sv_no;
 	XSRETURN(1);
 
 void
@@ -468,10 +475,8 @@ is_instance(x, klass)
 PPCODE:
 	SvGETMAGIC(x);
 	SvGETMAGIC(klass);
-	if( instance_of(aTHX_ x, klass) == &PL_sv_yes ){
-		/* ST(0) = x; */
-		XSRETURN(1);
-	}
+	ST(0) = instance_of(aTHX_ x, klass);
+	XSRETURN(1);
 
 void
 instance(x, klass)
@@ -484,8 +489,9 @@ PPCODE:
 		/* ST(0) = x; */
 		XSRETURN(1);
 	}
-	my_croak(aTHX_ "Validation failed: you must supply an instance of %"SVf,
+	my_croak(aTHX_ "Validation failed: you must supply an instance of %"SVf", not %s",
 		klass, neat(x));
+
 
 bool
 fast_isa(sv, name)
@@ -494,10 +500,6 @@ fast_isa(sv, name)
 PREINIT:
 	HV* stash;
 CODE:
-	if (!SvOK(sv) || !(SvROK(sv) || (SvPOK(sv) && SvCUR(sv))
-		|| (SvGMAGICAL(sv) && SvPOKp(sv) && SvCUR(sv))))
-		XSRETURN_UNDEF;
-	
 	SvGETMAGIC(sv);
 	if (SvROK(sv)) {
 		sv = SvRV(sv);
@@ -506,8 +508,11 @@ CODE:
 
 		stash = SvOBJECT(sv) ? SvSTASH(sv) : NULL;
 	}
-	else {
+	else if(my_SvPOK(sv) && SvCUR(sv)){
 		stash = gv_stashsv(sv, FALSE);
+	}
+	else{
+		stash = NULL;
 	}
 	RETVAL = stash ? isa_lookup(stash, name) : FALSE;
 OUTPUT:
@@ -529,7 +534,13 @@ HV*
 get_stash(package_name)
 	SV* package_name
 CODE:
-	RETVAL = gv_stashsv(package_name, FALSE);
+	SvGETMAGIC(package_name);
+	if(my_SvPOK(package_name) && SvCUR(package_name)){
+		RETVAL = gv_stashsv(package_name, FALSE);
+	}
+	else{
+		RETVAL = NULL;
+	}
 	if(!RETVAL){
 		XSRETURN_UNDEF;
 	}
@@ -543,7 +554,7 @@ _fail_handler(pkg, code = NULL)
 PREINIT:
 	dMY_CXT;
 	STRLEN len;
-	const char* pv = SvPV_const(pkg, len);
+	const char* const pv = SvPV_const(pkg, len);
 	SV** old;
 CODE:
 	if(!MY_CXT.fail_handler_map){

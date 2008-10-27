@@ -1,5 +1,10 @@
 Revision history for Data-Util
 
+0.041 Mon Oct 27 08:27:11 2008
+	- fix C99 portability
+	- fix is_instance() to return a bool
+	- fix get_stash() to accept undef silently
+
 0.04 Sun Oct 26 10:19:11 2008
 	- change messsages
 	- improve neat() when HASH or ARRAY is supplied

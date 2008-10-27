@@ -49,7 +49,7 @@ foreach my $x (Foo->new, Foo::X::X::X->new, Unrelated->new, undef, {}){
 				$i++ if blessed($x) && $x->isa('Foo');
 			}
 		},
-		'instance()' => sub{
+		'is_instance()' => sub{
 			for(1 .. 10){
 				$i++ if is_instance($x, 'Foo');
 			}
