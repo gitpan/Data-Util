@@ -1,6 +1,6 @@
 NAME
 
-	Data::Util - A selection of type-related utilities
+	Data::Util - A selection of utilities for data and data types
 
 SYNOPSIS
 
@@ -10,7 +10,7 @@ SYNOPSIS
 
 DESCRIPTION
 
-	This module provides utility subroutines related to data types.
+	This module provides utility subroutines for data and data types.
 
 	See "perldoc Data::Util" for the rest of the document.
 

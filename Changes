@@ -1,5 +1,9 @@
 Revision history for Data-Util
 
+0.05 Tue Oct 28 22:39:58 2008
+	- add install_subroutine()
+	- internal cleanup
+
 0.041 Mon Oct 27 08:27:11 2008
 	- fix C99 portability
 	- fix is_instance() to return a bool

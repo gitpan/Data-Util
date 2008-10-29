@@ -4,7 +4,7 @@ use 5.008_001;
 use strict;
 use warnings;
 
-our $VERSION = '0.041';
+our $VERSION = '0.05';
 
 use Carp (); # for default fail handler
 use Exporter ();
@@ -21,6 +21,7 @@ our @EXPORT_OK = qw(
 	anon_scalar neat
 
 	get_stash
+	install_subroutine
 );
 our %EXPORT_TAGS = (
 	all => \@EXPORT_OK,
@@ -66,7 +67,7 @@ Data::Util - A selection of utilities for data and data types
 
 =head1 VERSION
 
-This document describes Data::Util version 0.041
+This document describes Data::Util version 0.05
 
 =head1 SYNOPSIS
 
@@ -218,13 +219,21 @@ Generates an anonymous scalar reference to I<expr>.
 
 Returns a neat string that is suitable to display.
 
-=item get_stash(package_name)
+=item get_stash(package)
 
-Returns the symbol table hash (also known as B<stash>) of I<package_name>
+Returns the symbol table hash (also known as B<stash>) of I<package>
 if the stash exists.
 
-It is similar to C<< do{ no strict 'refs'; \%{$package_name . '::'} } >>,
-but does B<not> create the stash if I<package_name> does not exist.
+It is similar to C<< do{ no strict 'refs'; \%{$package.'::'} } >>,
+but does B<not> create the stash if I<package> does not exist.
+
+=item install_subroutine(package, name => \&subr)
+
+Installs I<\&subr> into I<package> as I<name>.
+
+It is similar to C<< do{ no strict 'refs'; *{$package.'::'.$name} = \&subr; } >>,
+but if I<\&subr> is anonymous, it is relocated into I<package> as a
+named subroutine.
 
 =back
 

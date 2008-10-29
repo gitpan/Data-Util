@@ -7,8 +7,6 @@ use Benchmark qw(:all);
 use Params::Util qw(_ARRAY0);
 use Data::Util qw(:all);
 
-my $o = [];
-
 print "Perl $] on $^O\n";
 
 print "Params::Util::_ARRAY0() vs. Scalar::Util::Ref::is_array_ref() vs. ref()\n";

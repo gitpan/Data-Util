@@ -1,21 +1,6 @@
-#define PERL_NO_GET_CONTEXT
-#include <EXTERN.h>
-#include <perl.h>
-#include <XSUB.h>
+/* Data-Util/Util.xs */
 
-#include "ppport.h"
-
-#include "c99portability.h"
-
-#include "mro_compat.h"
-#include "str_util.h"
-
-#define my_SvNIOK(sv) (SvFLAGS(sv) & (SVf_IOK|SVf_NOK|SVp_IOK|SVp_NOK))
-#define my_SvPOK(sv)  (SvFLAGS(sv) & (SVp_POK | SVf_POK))
-
-#ifndef SvRXOK
-#define SvRXOK(sv) ((bool)(SvROK(sv) && (SvTYPE(SvRV(sv)) == SVt_PVMG) && mg_find(SvRV(sv), PERL_MAGIC_qr)))
-#endif
+#include "data-util.h"
 
 
 #define MY_CXT_KEY "Data::Util::_guts" XS_VERSION
@@ -57,122 +42,6 @@ static const char* const ref_names[] = {
 };
 
 
-#define neat(x) my_neat(aTHX_ x)
-static void
-my_neat_cat(pTHX_ SV* const dsv, SV* x, const int level){
-
-	if(level > 2){
-		sv_catpvs(dsv, "...");
-		return;
-	}
-
-	if(SvROK(x)){
-		x = SvRV(x);
-
-		if(SvOBJECT(x)){
-			Perl_sv_catpvf(aTHX_ dsv, "%s=%s(0x%p)",
-				sv_reftype(x, TRUE), sv_reftype(x, FALSE), x);
-			return;
-		}
-		else if(SvTYPE(x) == SVt_PVAV){
-			SV** svp;
-			I32 len = av_len((AV*)x);
-
-			sv_catpvs(dsv, "[");
-			if(len >= 0){
-				svp = av_fetch((AV*)x, 0, FALSE);
-
-				if(*svp){
-					my_neat_cat(aTHX_ dsv, *svp, level+1);
-				}
-				else{
-					sv_catpvs(dsv, "undef");
-				}
-				if(len > 0){
-					sv_catpvs(dsv, ", ...");
-				}
-			}
-			sv_catpvs(dsv, "]");
-		}
-		else if(SvTYPE(x) == SVt_PVHV){
-			I32 klen;
-			char* key;
-			SV* val;
-
-			hv_iterinit((HV*)x);
-			val = hv_iternextsv((HV*)x, &key, &klen);
-
-			sv_catpvs(dsv, "{");
-			if(val){
-				bool need_quote = TRUE;
-				if(isIDFIRST(*key)){
-					const char* k   = key;
-					const char* end = key + klen - 1 /*'\0'*/;
-
-					need_quote = FALSE;
-					while(k != end){
-						++k;
-						if(!isALNUM(*k)){
-							need_quote = TRUE;
-							break;
-						}
-					}
-				}
-				if(need_quote){
-					SV* sv = newSV(klen + 5);
-					sv_2mortal(sv);
-					key = pv_display(sv, key, klen, klen, klen);
-				}
-				Perl_sv_catpvf(aTHX_ dsv, "%s => ", key);
-				my_neat_cat(aTHX_ dsv, val, level+1);
-
-				if(hv_iternext((HV*)x)){
-					sv_catpvs(dsv, ", ...");
-				}
-			}
-
-			sv_catpvs(dsv, "}");
-		}
-		else{
-			Perl_sv_catpvf(aTHX_ dsv, "%s(0x%p)", sv_reftype(x, FALSE), x);
-		}
-	}
-	else if(SvTYPE(x) == SVt_PVGV){
-		sv_catsv(dsv, x);
-	}
-	else if(SvOK(x)){
-		if(my_SvNIOK(x)){
-			Perl_sv_catpvf(aTHX_ dsv, "%"NVgf, SvNV(x));
-		}
-		else{
-			STRLEN cur;
-			char* const pv = SvPV(x, cur);
-			static const STRLEN pvlim = 15;
-			SV* sv = newSV(pvlim + 5);
-			sv_2mortal(sv);
-			pv_display(sv, pv, cur, cur, pvlim);
-			sv_catsv(dsv, sv);
-		}
-	}
-	else{
-		sv_catpvs(dsv, "undef");
-	}
-}
-
-static const char*
-my_neat(pTHX_ SV* x){
-	SV* const dsv = newSV(100);
-	sv_2mortal(dsv);
-	sv_setpvs(dsv, "");
-
-	ENTER;
-
-	my_neat_cat(aTHX_ dsv, x, 0);
-
-	LEAVE;
-
-	return SvPVX(dsv);
-}
 
 static void
 my_croak(pTHX_ const char* const fmt, ...)
@@ -190,7 +59,6 @@ my_croak(pTHX_ const char* const fmt, ...){
 	dSP;
 
 	va_list args;
-	va_start(args, fmt);
 
 	assert(PL_curcop != NULL);
 	stashpv = CopSTASHPV(PL_curcop);
@@ -215,7 +83,10 @@ my_croak(pTHX_ const char* const fmt, ...){
 	SAVETMPS;
 	ENTER;
 
+	va_start(args, fmt);
 	mess = vnewSVpvf(fmt, &args);
+	va_end(args);
+
 	sv_2mortal(mess);
 
 	PUSHMARK(SP);
@@ -233,8 +104,6 @@ my_croak(pTHX_ const char* const fmt, ...){
 	/* not reached */
 	FREETMPS;
 	LEAVE;
-
-	va_end(args);
 }
 
 static bool
@@ -518,18 +387,6 @@ CODE:
 OUTPUT:
 	RETVAL
 
-SV*
-anon_scalar(referent = undef)
-CODE:
-	RETVAL = newRV_noinc(items == 0 ? newSV(0) : newSVsv(ST(0)));
-OUTPUT:
-	RETVAL
-
-
-const char*
-neat(expr)
-	SV* expr
-
 HV*
 get_stash(package_name)
 	SV* package_name
@@ -546,6 +403,60 @@ CODE:
 	}
 OUTPUT:
 	RETVAL
+
+
+SV*
+anon_scalar(referent = undef)
+CODE:
+	RETVAL = newRV_noinc(items == 0 ? newSV(0) : newSVsv(ST(0)));
+OUTPUT:
+	RETVAL
+
+const char*
+neat(expr)
+	SV* expr
+
+void
+install_subroutine(into, as, code_ref)
+	SV* into
+	SV* as
+	SV* code_ref
+PREINIT:
+	/* arguments */
+	CV* code         = NULL;
+	const char* name = NULL;
+	STRLEN   namelen = 0;
+	GV* gv;
+	HV* stash;
+CODE:
+	stash = gv_stashsv(into, FALSE);
+	if(!stash){
+		my_croak(aTHX_ "Package %s does not exist", neat(into));
+	}
+	SvGETMAGIC(as);
+	if(my_SvPOK(as) && SvCUR(as)){
+		name    = SvPVX(as);
+		namelen = SvCUR(as);
+	}
+	else{
+		my_croak(aTHX_ "Invalid subroutine name %s supplied", neat(as));
+	}
+	SvGETMAGIC(code_ref);
+	if(SvROK(code_ref) && SvTYPE(SvRV(code_ref)) == SVt_PVCV){
+		code    = (CV*)SvRV(code_ref);
+	}
+	else{
+		my_croak(aTHX_ "Invalid CODE reference %s supplied", neat(code_ref));
+	}
+	gv = (GV*)*hv_fetch(stash, name, namelen, TRUE);
+	if(SvTYPE(gv) != SVt_PVGV) gv_init(gv, stash, name, namelen, GV_ADDMULTI);
+	SvSetMagicSV((SV*)gv, code_ref); /* *foo = \&bar */
+	if(CvANON(code)){
+//		SvREFCNT_dec(CvGV(code));
+		CvGV(code) = gv;
+//		SvREFCNT_inc_simple_void_NN(gv);
+		CvANON_off(code);
+	}
 
 SV*
 _fail_handler(pkg, code = NULL)

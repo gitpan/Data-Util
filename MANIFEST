@@ -1,6 +1,7 @@
 .cvsignore
-Changes
 c99portability.h
+Changes
+data-util.h
 example/gen_bench.pl
 example/get_stash_bench.pl
 example/inst_bench.pl
@@ -18,6 +19,7 @@ MANIFEST			This list of files
 META.yml
 mro_compat.c
 mro_compat.h
+neat.c
 ppport.h
 README
 str_util.h
@@ -27,6 +29,7 @@ t/02_inst.t
 t/03_gen.t
 t/04_overloaded.t
 t/05_get_stash.t
+t/06_install_subroutine.t
 t/07_threads.t
 t/08_mgvars.t
 t/09_paranoia.t
