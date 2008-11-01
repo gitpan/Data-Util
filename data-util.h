@@ -20,10 +20,10 @@
 #define SvRXOK(sv) ((bool)(SvROK(sv) && (SvTYPE(SvRV(sv)) == SVt_PVMG) && mg_find(SvRV(sv), PERL_MAGIC_qr)))
 #endif
 
+#define is_string(x) (SvOK(x) && !SvROK(x))
 
 #define neat(x) du_neat(aTHX_ x)
 #define neat_cat(dsv, x, level) du_neat_cat(aTHX_ dsv, x, level)
-
 
 void
 du_neat_cat(pTHX_ SV* const dsv, SV* x, const int level);

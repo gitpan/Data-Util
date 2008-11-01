@@ -1,9 +1,11 @@
 #!perl -w
 use strict;
 
-use Test::More tests => 10;
+use Test::More tests => 12;
 
 use Tie::Scalar;
+use Tie::Array;
+use Tie::Hash;
 
 use Data::Util qw(:check);
 
@@ -43,3 +45,8 @@ ok!is_instance($x, $class);
 $x = '';
 ok!is_instance($x, $class);
 
+tie my(@arr), 'Tie::StdArray';
+ok is_array_ref(\@arr);
+
+tie my(%hash), 'Tie::StdHash';
+ok is_hash_ref(\%hash);

@@ -10,13 +10,13 @@ SYNOPSIS
 
 DESCRIPTION
 
-	This module provides utility subroutines for data and data types.
+	This module provides utilities for data and data types.
 
 	See "perldoc Data::Util" for the rest of the document.
 
 DEPENDENCIES
 
-	perl 5.8.1 or later, and a C compiler.
+	perl 5.8.1 or later.
 
 INSTALLATION
 

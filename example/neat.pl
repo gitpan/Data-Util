@@ -13,6 +13,7 @@ say neat 42;
 say neat *foo;
 say neat \&foo;
 say neat [];
+say neat{ foo => "bar" };
 say neat bless {} => 'Foo';
 say neat undef;
 

@@ -2,10 +2,8 @@
  *   mro_compat.c - provides mro_get_linear_isa() using DFS algorithm
  */
 
-#include "c99portability.h"
 
 #include "mro_compat.h"
-#include "str_util.h"
 
 #ifdef USE_MRO_COMPAT
 

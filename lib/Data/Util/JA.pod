@@ -1,0 +1,275 @@
+
+=encoding utf-8
+
+=head1 NAME
+
+Data::Util::JA - データとデータ型のためのユーティリティ集
+
+=head1 VERSION
+
+This document describes Data::Util version 0.10
+
+=head1 SYNOPSIS
+
+	use Data::Util qw(:validate);
+
+	sub foo{
+		my $sref = scalar_ref(shift);
+		my $aref = array_ref(shift);
+		my $href = hash_ref(shift);
+		my $cref = code_ref(shift);
+		my $gref = glob_ref(shift);
+		my $rref = regex_ref(shift);
+		my $obj  = instance(shift, 'Foo');
+		# ...
+	}
+
+	use Data::Util qw(:check);
+
+	sub bar{
+		my $x = shift;
+		if(is_scalar_ref $x){
+			# $x is an array reference
+		}
+		# ...
+		elsif(is_instance $x, 'Foo'){
+			# $x is an instance of Foo
+		}
+		# ...
+	}
+
+	# to generate an anonymous scalar reference
+	use Data::Util qw(anon_scalar)
+
+	my $ref_to_undef = anon_scalar();
+	$x = anon_scalar($x); # OK
+
+	# miscelaneous
+	use Data::Util qw(get_stash install_subroutine get_code_info neat);
+
+	my $stash = get_stash('Foo');
+	install_subroutine('Foo', hello => sub{ "Hello, world!\n" });
+	my($pkg, $name) = get_code_info(\&Foo::hello); # => ('Foo', 'hello')
+	print Foo::hello(); # Hello, world!
+
+	print neat("Hello!\n"); # => "Hello!\n"
+	print neat(3.14);       # => 3.14
+	print neat(undef);      # => undef
+
+
+=head1 DESCRIPTION
+
+このモジュールはデータとデータ型のためのユーティリティ関数を提供します。
+
+ユーティリティはチェック関数群と検証関数群とその他の関数群があります。
+チェック関数群は値の型を調べ，真偽値を返す機能を提供します。
+検証関数群は値の型を調べ，真であればその値自身を返し，
+偽であれば致命的エラーとなる機能を提供します。
+その他の関数群は，無名スカラーリファレンスの生成やシンボルテーブルの操作，
+コードリファレンスの操作などの機能を提供します。
+
+=head1 INTERFACE
+
+=head2 Check functions
+
+チェック関数群はC<:check>インポートタグによって導入できます。これらはある値
+の型が目的の型であれば真を，そうでなければ偽を返します。
+
+また，これらの関数はオーバーロードマジックも調べます。たとえば，C<${}>が
+オーバーロードされているオブジェクトは，スカラーリファレンスとして扱われます。
+
+リファレンスの型チェックをする関数は，オブジェクトリファレンスに対しては，
+オーバーロードされていない限り常に偽を返します。
+これは，オブジェクトの実装に依存するコードを書かないようにするためです。
+
+=over 4
+
+=item is_scalar_ref(value)
+
+スカラーリファレンスかどうかのチェックを行います。
+
+=item is_array_ref(value)
+
+配列リファレンスかどうかのチェックを行います。
+
+=item is_hash_ref(value)
+
+ハッシュリファレンスかどうかのチェックを行います。
+
+=item is_code_ref(value)
+
+コードリファレンスかどうかのチェックを行います。
+
+=item is_glob_ref(value)
+
+グロブリファレンスかどうかのチェックを行います。
+
+=item is_regex_ref(value)
+
+C<qr//>によって作られる正規表現かどうかのチェックを行います。
+
+=item is_instance(value, class)
+
+I<class>のインスタンスかどうかのチェックを行います。
+
+C<< Scalar::Util::blessed($value) && $value->isa($class) >>というコードと
+ほぼ等価です。
+
+I<class>が未定義値またはリファレンスであれば致命的エラーとなります。
+
+=back
+
+
+=head2 Validating functions
+
+検証関数はC<:validate>タグによって導入できます。これらはチェック関数と
+同じ方法でチェックを行います。
+ただし，その結果が真であれば第一引数をそのまま返し，
+偽であれば致命的エラーとなります。
+
+これらの関数もオーバーロードマジックをチェックします。
+
+=over 4
+
+=item scalar_ref(value)
+
+スカラーリファレンスかどうかの検証を行います。
+
+=item array_ref(value)
+
+配列リファレンスかどうかの検証を行います。
+
+=item hash_ref(value)
+
+ハッシュリファレンスかどうかの検証を行います。
+
+=item code_ref(value)
+
+コードリファレンスかどうかの検証を行います。
+
+=item glob_ref(value)
+
+グロブリファレンスかどうかの検証を行います。
+
+=item regex_ref(value)
+
+C<qr//>によって作られる正規表現かどうかの検証を行います。
+
+=item instance(value, class)
+
+I<class>のインスタンスかどうかの検証を行います。
+
+I<class>が未定義値またはリファレンスであれば致命的エラーとなります。
+
+=back
+
+=head2 Micellaneous utilities
+
+その他，個別にインポートできるいくつかのユーティリティ関数があります。
+
+=over 4
+
+=item anon_scalar()
+
+C<undef>を参照する匿名スカラーリファレンスを生成します。
+
+=item anon_scalar(value)
+
+I<value>を参照する匿名スカラーリファレンスを生成します。
+
+=item neat(value)
+
+I<value>を表示に適するよう整形した文字列を返します。
+これはエラーメッセージのために使うことが想定されています。
+
+=item get_stash(package)
+
+スタッシュ B<stash> と呼ばれるI<package>のシンボルテーブルハッシュが
+存在すれば，そのスタッシュを返します。
+
+C<< do{ no strict 'refs'; \%{$package.'::'} } >>というコードに似ていますが，
+I<package>が存在しなければそのスタッシュは生成せずC<undef>を返します。
+なお，I<package>が未定義値またはリファレンスのときもC<undef>を返します。
+
+=item install_subroutine(package, name => subr)
+
+サブルーチンI<subr>をI<package>にI<name>としてインストールします。
+
+C<< do{ no strict 'refs'; *{$package.'::'.$name} = \&subr; } >>というコードと
+ほぼ等価です。さらに，I<subr>が匿名サブルーチンであればI<package>に
+名前付きサブルーチンI<&package::name>として再配置します。
+
+サブルーチンを再インストールするときは，C<< no warnings 'redefine' >>
+ディレクティブを使ってください。
+
+	no warnings 'redefine';
+	install_subrouitne($package, $name => $subr);
+
+I<package>かI<name>が未定義値またはリファレンスであれば致命的エラーとなります。
+I<subr>がコードリファレンスでないときも致命的エラーとなりますが，
+オーバーロードマジックは考慮されます。
+
+なお，Pure Perl版のコードでは匿名サブルーチンの再配置は行いません。
+
+=item get_code_info(subr)
+
+コードリファレンスI<subr>のパッケージと名前のペアを返します。
+これはC<Sub::Identify::get_code_info()>と同じ機能です。
+
+この関数はオーバーロードマジックを考慮しません。
+
+=back
+
+=head2 Subdirectives
+
+=over 4
+
+=item -fast_isa
+
+C<UNIVERSAL::isa()>を同機能の高速版であるC<fast_isa()>で置き換えます。
+この代替ルーチンはPerlディストリビューションのF<universal.t>の
+全てのテストを通過するので，C<UNIVERSAL::isa()>の仕様に準じているといえます。
+
+このサブディレクティブはプログラム全体に効果を及ぼします。
+
+=item -fail_handler => \&handler
+
+検証ルーチンが呼び出すエラーハンドラを設定します。
+
+このサブディレクティブは呼び出し元のパッケージにのみ効果を及ぼします。
+
+=back
+
+=head1 DEPENDENCIES
+
+Perl 5.8.1 or later.
+
+=head1 BUGS AND LIMITATIONS
+
+No bugs have been reported.
+
+Please report any bugs or feature requests to the author.
+
+=head1 SEE ALSO
+
+L<Scalar::Util>.
+
+L<Params::Util>.
+
+L<Sub::Identify>.
+
+L<Sub::Install>.
+
+=head1 AUTHOR
+
+Goro Fuji E<lt>gfuji(at)cpan.orgE<gt>
+
+=head1 LICENSE AND COPYRIGHT
+
+Copyright (c) 2008, Goro Fuji E<lt>gfuji(at)cpan.orgE<gt>. Some rights reserved.
+
+This module is free software; you can redistribute it and/or
+modify it under the same terms as Perl itself.
+
+=cut
+

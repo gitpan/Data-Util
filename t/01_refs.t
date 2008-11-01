@@ -1,12 +1,14 @@
 #!perl -w
 use strict;
 
-use Test::More tests => 44;
+use Test::More tests => 45;
 
 use Test::Exception;
 
 use Data::Util qw(:all);
 use Symbol qw(gensym);
+
+use constant PP_ONLY => exists $INC{'Data/Util/PurePerl.pm'};
 
 sub lval_f :lvalue{
 	my $f;
@@ -43,14 +45,18 @@ ok!is_glob_ref(undef), 'is_glob_ref';
 
 ok is_regex_ref(qr/foo/), 'is_regex_ref';
 ok!is_regex_ref({}), 'is_regex_ref';
-ok!is_regex_ref(bless [], 'Regexp'), 'fake regexp';
+
+SKIP:{
+	skip 'in testing perl only', 1 if PP_ONLY;
+	ok!is_regex_ref(bless [], 'Regexp'), 'fake regexp';
+}
 
 
 ok scalar_ref(\''), 'scalar_ref';
 
 throws_ok{
 	scalar_ref([]);
-} qr/Validation failed: you must supply a SCALAR reference, not \[\]/;
+} qr/Validation failed: you must supply a SCALAR reference/;
 
 throws_ok{
 	scalar_ref(undef);
@@ -70,12 +76,19 @@ throws_ok{
 
 ok array_ref([]), 'array_ref';
 throws_ok{
-	array_ref({});
+	array_ref({foo => "bar"});
 } qr/Validation failed/;
 
 ok hash_ref({}), 'hash_ref';
 throws_ok{
 	hash_ref([]);
+} qr/Validation failed/;
+
+throws_ok{
+	my @a;
+	push @a, \@a; # recursive array
+	hash_ref(\@a);
+	@a = ();
 } qr/Validation failed/;
 
 
@@ -94,10 +107,12 @@ throws_ok{
 	regex_ref([]);
 } qr/Validation failed/;
 
-dies_ok{
-	is_scalar_ref();
-} 'not enough arguments';
-dies_ok{
-	scalar_ref();
-} 'not enought arguments';
-
+SKIP:{
+	skip 'in testing perl only', 2 if PP_ONLY;
+	dies_ok{
+		is_scalar_ref();
+	} 'not enough arguments';
+	dies_ok{
+		scalar_ref();
+	} 'not enought arguments';
+}

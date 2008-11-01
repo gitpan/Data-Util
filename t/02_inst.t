@@ -1,6 +1,7 @@
 #!perl -w
 use strict;
-use Test::More tests => 31;
+use Test::More tests => 33;
+use Test::Exception;
 
 use Data::Util qw(is_instance instance);
 
@@ -68,32 +69,30 @@ ok !is_instance({},    'Foo');
 
 ok !is_instance({}, 'HASH');
 
-ok !eval{ is_instance(Broken->new(), 'Broken'); 1 };
+dies_ok{ is_instance(Broken->new(), 'Broken')  };
 
 ok is_instance(AL->new, 'AL');
 ok is_instance(AL->new, 'Foo');
 
-ok !eval{ is_instance(AL_stubonly->new, 'AL'); 1 };
+dies_ok { is_instance(AL_stubonly->new, 'AL') };
 
 isa_ok instance(Foo->new, 'Foo'), 'Foo', 'instance';
 isa_ok instance(Bar->new, 'Foo'), 'Foo';
 
-ok !eval{ instance(undef, 'Foo');1 };
-ok !eval{ instance(1, 'Foo');1 };
-ok !eval{ instance('', 'Foo'); 1};
-ok !eval{ instance({}, 'Foo');1 };
-ok !eval{ instance(Foo->new, 'Bar');1 };
+dies_ok{ instance(undef, 'Foo') };
+dies_ok{ instance(1, 'Foo')     };
+dies_ok{ instance('', 'Foo')    };
+dies_ok{ instance({}, 'Foo')    };
+dies_ok{ instance(Foo->new, 'Bar') };
 
-my $universal_isa = UNIVERSAL->can('isa');
-undef *UNIVERSAL::isa;
-
-ok is_instance(Bar->new, 'Foo'), 'is_instance() works even if UNIVERSAL::isa wis deleted';
-ok eval{ instance(Bar->new, 'Foo') };
-
-*UNIVERSAL::isa = $universal_isa;
 
 # error
-ok !eval{ is_instance('Foo', Foo->new());1 }, 'illigal argument order';
-ok !eval{ is_instance([], []);1 }, 'illigal use';
-ok !eval{ is_instance(); 1}, 'not enough argument';
-ok !eval{ is_instance([], undef); 1 }, 'uninitialized class';
+dies_ok{ is_instance('Foo', Foo->new()) } 'illigal argument order';
+dies_ok{ is_instance([], [])            } 'illigal use';
+dies_ok{ is_instance()                  } 'not enough argument';
+dies_ok{ is_instance([], undef)         } 'uninitialized class';
+
+dies_ok{ instance('Foo', Foo->new())    } 'illigal argument order';
+dies_ok{ instance([], [])               } 'illigal use';
+dies_ok{ instance()                     } 'not enough argument';
+dies_ok{ instance([], undef)            } 'uninitialized class';

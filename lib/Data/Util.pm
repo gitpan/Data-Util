@@ -4,12 +4,19 @@ use 5.008_001;
 use strict;
 use warnings;
 
-our $VERSION = '0.05';
+our $VERSION = '0.10';
 
 use Carp (); # for default fail handler
 use Exporter ();
-use XSLoader;
-XSLoader::load(__PACKAGE__, $VERSION);
+
+our $TESTING_PERL_ONLY;
+eval{
+	require XSLoader;
+	XSLoader::load(__PACKAGE__, $VERSION);
+} unless $TESTING_PERL_ONLY;
+
+eval q{require Data::Util::PurePerl} # not to create "Data::Util::PurePerl" package
+	unless defined &instance;
 
 our @EXPORT_OK = qw(
 	is_scalar_ref is_array_ref is_hash_ref is_code_ref is_glob_ref is_regex_ref
@@ -22,6 +29,7 @@ our @EXPORT_OK = qw(
 
 	get_stash
 	install_subroutine
+	get_code_info
 );
 our %EXPORT_TAGS = (
 	all => \@EXPORT_OK,
@@ -67,7 +75,7 @@ Data::Util - A selection of utilities for data and data types
 
 =head1 VERSION
 
-This document describes Data::Util version 0.05
+This document describes Data::Util version 0.10
 
 =head1 SYNOPSIS
 
@@ -104,68 +112,70 @@ This document describes Data::Util version 0.05
 	my $ref_to_undef = anon_scalar();
 	$x = anon_scalar($x); # OK
 
-	# to display a value for error messages
-	use Data::Util qw(neat);
-	print neat("foo\n");   # => "foo\n"
-	print neat(42);        # => 42
-	print neat(undef);     # => undef
-	print neat([1, 2, 3]); # => [1, ...]
+	# miscelaneous
+	use Data::Util qw(get_stash install_subroutine get_code_info neat);
 
+	my $stash = get_stash('Foo');
+	install_subroutine('Foo', hello => sub{ "Hello, world!\n" });
+	my($pkg, $name) = get_code_info(\&Foo::hello); # => ('Foo', 'hello')
+	print Foo::hello(); # Hello, world!
+
+	print neat("Hello!\n"); # => "Hello!\n"
+	print neat(3.14);       # => 3.14
+	print neat(undef);      # => undef
 
 =head1 DESCRIPTION
 
-This module provides utility subroutines for data and data types.
+This module provides utility functions for data and data types.
 
 =head1 INTERFACE
 
 =head2 Check functions
 
-Check functions are introduced by the C<:check> tag, which check the argument
-type and return a bool.
+Check functions are introduced by the C<:check> import tag, which check
+the argument type and return a bool.
 
 These functions also checks overloading magic, e.g. C<${}> for a SCALAR reference.
 
 =over 4
 
-=item is_scalar_ref($x)
+=item is_scalar_ref(value)
 
 For a SCALAR reference.
 
-=item is_array_ref($x)
+=item is_array_ref(value)
 
 For an ARRAY reference.
 
-=item is_hash_ref($x)
+=item is_hash_ref(value)
 
 For a HASH reference.
 
-=item is_code_ref($x)
+=item is_code_ref(value)
 
 For a CODE reference.
 
-=item is_glob_ref($x)
+=item is_glob_ref(value)
 
 For a GLOB reference.
 
-=item is_regex_ref($x)
+=item is_regex_ref(value)
 
-For a regular expression reference.
+For a regular expression reference made by the C<qr//> operator.
 
-=item is_instance($x, $class)
+=item is_instance(value, class)
 
-For an instance of a class.
+For an instance of I<class>.
 
 It is equivalent to something like
-C<Scalar::Util::blessed($x) && $x->isa($class)>,
-but significantly faster and easy to use.
+C<< Scalar::Util::blessed($value) && $value->isa($class) >>.
 
 =back
-
 
 =head2 Validating functions
 
 Validating functions are introduced by the C<:validate> tag which check the
-argument and returns the first argument C<$x>.
+argument and returns the first argument.
 These are like the C<:check> functions but dies if the argument type
 is invalid.
 
@@ -173,37 +183,39 @@ These functions also checks overloading magic, e.g. C<${}> for a SCALAR referenc
 
 =over 4
 
-=item scalar_ref($x)
+=item scalar_ref(value)
 
 For a SCALAR reference.
 
-=item array_ref($x)
+=item array_ref(value)
 
 For an ARRAY reference.
 
-=item hash_ref($x)
+=item hash_ref(value)
 
 For a HASH reference.
 
-=item code_ref($x)
+=item code_ref(value)
 
 For a CODE reference.
 
-=item glob_ref($x)
+=item glob_ref(value)
 
 For a GLOB reference.
 
-=item regex_ref($x)
+=item regex_ref(value)
 
 For a regular expression reference.
 
-=item instance($x, $class)
+=item instance(value, class)
 
-For an instance of a I<$class>.
+For an instance of I<class>.
 
 =back
 
-=head2 Other utilities
+=head2 Miscellaneous utilities
+
+There are some other utility functions you can import from this module.
 
 =over 4
 
@@ -211,11 +223,11 @@ For an instance of a I<$class>.
 
 Generates an anonymous scalar reference to C<undef>.
 
-=item anon_scalar(expr)
+=item anon_scalar(value)
 
-Generates an anonymous scalar reference to I<expr>.
+Generates an anonymous scalar reference to I<value>.
 
-=item neat(expr)
+=item neat(value)
 
 Returns a neat string that is suitable to display.
 
@@ -227,13 +239,25 @@ if the stash exists.
 It is similar to C<< do{ no strict 'refs'; \%{$package.'::'} } >>,
 but does B<not> create the stash if I<package> does not exist.
 
-=item install_subroutine(package, name => \&subr)
+=item install_subroutine(package, name => subr)
 
-Installs I<\&subr> into I<package> as I<name>.
+Installs I<subr> into I<package> as I<name>.
 
-It is similar to C<< do{ no strict 'refs'; *{$package.'::'.$name} = \&subr; } >>,
-but if I<\&subr> is anonymous, it is relocated into I<package> as a
-named subroutine.
+It is similar to
+C<< do{ no strict 'refs'; *{$package.'::'.$name} = \&subr; } >>.
+In addtion, if I<subr> is an anonymous subroutine, it is relocated into
+I<package> as a named subroutine I<&package::name>.
+
+To re-install I<subr>, use C<< no warnings 'redefine' >> directive:
+
+	no warnings 'redefine';
+	install_subroutine($package, $name => $subr);
+
+=item get_code_info(subr)
+
+Returns a pair of elements, the package name and the subroutine name of I<subr>.
+
+It is the same function as C<Sub::Identify::get_code_info()>.
 
 =back
 
@@ -261,7 +285,7 @@ This subdirective is package-scoped.
 
 =head1 DEPENDENCIES
 
-Perl 5.8.1 or later, and a C compiler.
+Perl 5.8.1 or later.
 
 =head1 BUGS AND LIMITATIONS
 
@@ -274,6 +298,8 @@ Please report any bugs or feature requests to the author.
 L<Params::Util>.
 
 L<Scalar::Util>.
+
+L<Sub::Identify>.
 
 =head1 AUTHOR
 

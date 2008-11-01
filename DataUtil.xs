@@ -5,7 +5,6 @@
 
 #define MY_CXT_KEY "Data::Util::_guts" XS_VERSION
 
-
 typedef struct{
 	GV* universal_isa;
 
@@ -209,9 +208,12 @@ my_isa_lookup(pTHX_ HV* const stash, const char* klass_name){
 	if(strEQ(stash_name, klass_name)){
 		return TRUE;
 	}
+	else if(strEQ(klass_name, "UNIVERSAL")){
+		return TRUE;
+	}
 	else{
 		AV*  const stash_linear_isa = mro_get_linear_isa(stash);
-		SV**       svp = AvARRAY(stash_linear_isa) + 1; /* skip this class */
+		SV**       svp = AvARRAY(stash_linear_isa) + 1;   /* skip this class */
 		SV** const end = svp + AvFILLp(stash_linear_isa); /* start + 1 + last index */
 
 		while(svp != end){
@@ -220,54 +222,55 @@ my_isa_lookup(pTHX_ HV* const stash, const char* klass_name){
 			}
 			svp++;
 		}
-		return strEQ(klass_name, "UNIVERSAL");
 	}
+	return FALSE;
 }
 
 /* returns &PL_sv_yes or &PL_sv_no */
 static SV*
 instance_of(pTHX_ SV* const x, SV* const klass){
 	dVAR;
-	/* from pp_bless() in pp.c */
-	if( !SvOK(klass) || (!SvGMAGICAL(klass) && !SvAMAGIC(klass) && SvROK(klass)) ){
-		Perl_croak(aTHX_ "Invalid class name %s supplied", neat(klass));
+	if( !is_string(klass) ){
+		Perl_croak(aTHX_ "Invalid %s %s supplied", "class name", neat(klass));
 	}
 
 	if( !(SvROK(x) && SvOBJECT(SvRV(x))) ){
 		return &PL_sv_no;
 	}
 	else{
-		dSP;
 		dMY_CXT;
-		SV* retval;
 		HV* const stash = SvSTASH(SvRV(x));
 		GV* const isa   = gv_fetchmeth_autoload(stash, "isa", sizeof("isa")-1, 0 /* special zero, not flags */);
+		SV* retval;
 
 		if(isa == NULL || GvCV(isa) == GvCV(MY_CXT.universal_isa)){
 			return boolSV( isa_lookup(stash, SvPV_nolen_const(klass)) );
 		}
 
 		/* call the specific isa() method */
-		ENTER;
-		SAVETMPS;
+		{
+			dSP;
+			ENTER;
+			SAVETMPS;
 
-		PUSHMARK(SP);
-		EXTEND(SP, 2);
-		PUSHs(x);
-		PUSHs(klass);
-		PUTBACK;
+			PUSHMARK(SP);
+			EXTEND(SP, 2);
+			PUSHs(x);
+			PUSHs(klass);
+			PUTBACK;
 
-		call_sv((SV*)isa, G_SCALAR);
+			call_sv((SV*)isa, G_SCALAR);
 
-		SPAGAIN;
+			SPAGAIN;
 
-		retval = boolSV( SvTRUE(TOPs) );
-		POPs;
+			retval = boolSV( SvTRUE(TOPs) );
+			POPs;
 
-		PUTBACK;
+			PUTBACK;
 
-		FREETMPS;
-		LEAVE;
+			FREETMPS;
+			LEAVE;
+		}
 
 		return retval;
 	}
@@ -314,9 +317,9 @@ ALIAS:
 	is_code_ref   = T_CV
 	is_glob_ref   = T_GV
 	is_regex_ref  = T_RX
-PPCODE:
+CODE:
 	SvGETMAGIC(x);
-	ST(0) = my_ref_type(aTHX_ x, (my_ref_t)ix) ? &PL_sv_yes : &PL_sv_no;
+	ST(0) = boolSV(my_ref_type(aTHX_ x, (my_ref_t)ix));
 	XSRETURN(1);
 
 void
@@ -329,7 +332,7 @@ ALIAS:
 	code_ref   = T_CV
 	glob_ref   = T_GV
 	regex_ref  = T_RX
-PPCODE:
+CODE:
 	SvGETMAGIC(x);
 	if(my_ref_type(aTHX_ x, (my_ref_t)ix)){
 		XSRETURN(1); /* return the first value */
@@ -341,7 +344,7 @@ void
 is_instance(x, klass)
 	SV* x
 	SV* klass
-PPCODE:
+CODE:
 	SvGETMAGIC(x);
 	SvGETMAGIC(klass);
 	ST(0) = instance_of(aTHX_ x, klass);
@@ -351,16 +354,14 @@ void
 instance(x, klass)
 	SV* x
 	SV* klass
-PPCODE:
+CODE:
 	SvGETMAGIC(x);
 	SvGETMAGIC(klass);
 	if( instance_of(aTHX_ x, klass) == &PL_sv_yes ){
-		/* ST(0) = x; */
-		XSRETURN(1);
+		XSRETURN(1); /* return $_[0] */
 	}
 	my_croak(aTHX_ "Validation failed: you must supply an instance of %"SVf", not %s",
 		klass, neat(x));
-
 
 bool
 fast_isa(sv, name)
@@ -392,7 +393,7 @@ get_stash(package_name)
 	SV* package_name
 CODE:
 	SvGETMAGIC(package_name);
-	if(my_SvPOK(package_name) && SvCUR(package_name)){
+	if(is_string(package_name)){
 		RETVAL = gv_stashsv(package_name, FALSE);
 	}
 	else{
@@ -417,46 +418,72 @@ neat(expr)
 	SV* expr
 
 void
-install_subroutine(into, as, code_ref)
+install_subroutine(into, as, code)
 	SV* into
 	SV* as
-	SV* code_ref
+	SV* code
 PREINIT:
 	/* arguments */
-	CV* code         = NULL;
-	const char* name = NULL;
-	STRLEN   namelen = 0;
+	CV* code_cv        = NULL;
+	const char* name   = NULL;
+	STRLEN   namelen   = 0;
 	GV* gv;
-	HV* stash;
+	HV* stash = NULL;
 CODE:
-	stash = gv_stashsv(into, FALSE);
-	if(!stash){
-		my_croak(aTHX_ "Package %s does not exist", neat(into));
+	SvGETMAGIC(into);
+	if(is_string(into)){
+		stash = gv_stashsv(into, TRUE);
+	}
+	else{
+		Perl_croak(aTHX_ "Invalid %s %s supplied",
+			"package name", neat(into));
 	}
 	SvGETMAGIC(as);
-	if(my_SvPOK(as) && SvCUR(as)){
-		name    = SvPVX(as);
-		namelen = SvCUR(as);
+	if(is_string(as)){
+		name    = SvPV_const(as, namelen);
 	}
 	else{
-		my_croak(aTHX_ "Invalid subroutine name %s supplied", neat(as));
+		Perl_croak(aTHX_ "Invalid %s %s supplied", "subroutine name", neat(as));
 	}
-	SvGETMAGIC(code_ref);
-	if(SvROK(code_ref) && SvTYPE(SvRV(code_ref)) == SVt_PVCV){
-		code    = (CV*)SvRV(code_ref);
+	SvGETMAGIC(code);
+	if(my_ref_type(aTHX_ code, T_CV)){
+		HV* tmpstash; /* not used */
+		GV* tmpgv;    /* not used */
+		code_cv = sv_2cv(code, &tmpstash, &tmpgv, FALSE);
+		if(SvTYPE(SvRV(code)) != SVt_PVCV){
+			code = newRV_inc((SV*)code_cv);
+			sv_2mortal(code);
+		}
 	}
 	else{
-		my_croak(aTHX_ "Invalid CODE reference %s supplied", neat(code_ref));
+		Perl_croak(aTHX_ "Invalid %s %s supplied", "CODE reference", neat(code));
 	}
 	gv = (GV*)*hv_fetch(stash, name, namelen, TRUE);
 	if(SvTYPE(gv) != SVt_PVGV) gv_init(gv, stash, name, namelen, GV_ADDMULTI);
-	SvSetMagicSV((SV*)gv, code_ref); /* *foo = \&bar */
-	if(CvANON(code)){
-//		SvREFCNT_dec(CvGV(code));
-		CvGV(code) = gv;
+	SvSetMagicSV((SV*)gv, code); /* *foo = \&bar */
+	if(CvANON(code_cv)){
+//		SvREFCNT_dec(CvGV(code_cv));
+		CvGV(code_cv) = gv;
 //		SvREFCNT_inc_simple_void_NN(gv);
-		CvANON_off(code);
+		CvANON_off(code_cv);
 	}
+
+void
+get_code_info(code)
+	SV* code
+PREINIT:
+	GV* gv;
+	const char* stash_name;
+PPCODE:
+	if(!(SvROK(code) && SvTYPE(SvRV(code)) == SVt_PVCV))
+		Perl_croak(aTHX_ "Invalid %s %s supplied",
+			"CODE reference", neat(code));
+	gv = CvGV((CV*)SvRV(code));
+	stash_name = HvNAME(GvSTASH(gv));
+	assert(stash_name);
+	EXTEND(SP, 2);
+	mPUSHp(stash_name, strlen(stash_name));
+	mPUSHp(GvNAME(gv), GvNAMELEN(gv));
 
 SV*
 _fail_handler(pkg, code = NULL)

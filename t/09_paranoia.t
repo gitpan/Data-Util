@@ -2,9 +2,18 @@
 
 
 use strict;
-use Test::More tests => 27;
+use Test::More;
 
 use Data::Util qw(is_instance);
+
+BEGIN{
+	if(exists $INC{'Data/Util/PurePerl.pm'}){
+		plan skip_all => 'In testing perl only';
+	}
+	else{
+		plan tests => 27;
+	}
+}
 
 BEGIN{ $^W = 0 }
 no warnings;

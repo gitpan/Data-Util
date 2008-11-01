@@ -12,9 +12,29 @@ requires 'XSLoader'   => 0.06;
 test_requires 'Test::More'      => 0.62;
 test_requires 'Test::Exception' => 0.27;
 
+author_tests 'xt';
+
+my $use_xs = can_cc();
+
+for (@ARGV){
+	/^-pm/ and $use_xs = 0;
+	/^-xs/ and $use_xs = 1;
+}
+warn can_cc();
+if($use_xs){
+	makemaker_args(
+		DEFINE => '-DINLINE_STR_EQ',
+		OBJECT => '$(O_FILES)',
+	);
+}
+else{
+	makemaker_args(
+		XS => {},
+		C  => [],
+	);
+}
+
 WriteMakefile(
-	DEFINE => '-DINLINE_STR_EQ',
-	OBJECT => '$(O_FILES)',
 	clean => {
 		FILES => q{
 			Data-Util-*

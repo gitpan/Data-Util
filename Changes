@@ -1,5 +1,11 @@
 Revision history for Data-Util
 
+0.10 Sat Nov  1 11:02:06 2008
+	- add get_code_info()
+	- add lib/Data/Util/JA.pod
+	- add pure-perl implementation
+	- internal cleanup
+
 0.05 Tue Oct 28 22:39:58 2008
 	- add install_subroutine()
 	- internal cleanup

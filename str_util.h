@@ -11,9 +11,6 @@ strnEQ(const char* const x, const char* const y, const size_t n){
 		if(x[i] != y[i]){
 			return FALSE;
 		}
-		else if(x[i] == '\0'){
-			return TRUE; /* y[i] is also '\0' */
-		}
 	}
 	return TRUE;
 }
