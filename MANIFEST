@@ -40,6 +40,7 @@ t/08_mgvars.t
 t/09_paranoia.t
 t/10_fast_isa.t
 t/11_fail_handler.t
+t/12_in_attr_handler.t
 t/pp01_refs.t
 t/pp02_inst.t
 t/pp03_gen.t
@@ -47,5 +48,6 @@ t/pp04_overloaded.t
 t/pp05_get_stash.t
 t/pp06_subroutine.t
 t/pp11_fail_handler.t
+t/pp12_in_attr_handler.t
 xt/01_pod.t
 xt/02_pod-coverage.t

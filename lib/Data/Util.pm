@@ -4,7 +4,7 @@ use 5.008_001;
 use strict;
 use warnings;
 
-our $VERSION = '0.10';
+our $VERSION = '0.11';
 
 use Carp (); # for default fail handler
 use Exporter ();
@@ -75,7 +75,7 @@ Data::Util - A selection of utilities for data and data types
 
 =head1 VERSION
 
-This document describes Data::Util version 0.10
+This document describes Data::Util version 0.11
 
 =head1 SYNOPSIS
 

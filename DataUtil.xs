@@ -479,11 +479,13 @@ PPCODE:
 		Perl_croak(aTHX_ "Invalid %s %s supplied",
 			"CODE reference", neat(code));
 	gv = CvGV((CV*)SvRV(code));
-	stash_name = HvNAME(GvSTASH(gv));
-	assert(stash_name);
-	EXTEND(SP, 2);
-	mPUSHp(stash_name, strlen(stash_name));
-	mPUSHp(GvNAME(gv), GvNAMELEN(gv));
+	if(gv){
+		stash_name = HvNAME(GvSTASH(gv));
+		assert(stash_name);
+		EXTEND(SP, 2);
+		mPUSHp(stash_name, strlen(stash_name));
+		mPUSHp(GvNAME(gv), GvNAMELEN(gv));
+	}
 
 SV*
 _fail_handler(pkg, code = NULL)

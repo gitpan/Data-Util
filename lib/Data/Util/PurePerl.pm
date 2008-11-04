@@ -137,6 +137,7 @@ sub get_code_info{
 
 	require B;
 	my $cv = B::svref_2object($code);
+	return unless $cv->GV->isa('B::GV');
 	return ($cv->GV->STASH->NAME, $cv->GV->NAME);
 }
 
