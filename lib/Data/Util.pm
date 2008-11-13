@@ -4,10 +4,9 @@ use 5.008_001;
 use strict;
 use warnings;
 
-our $VERSION = '0.11';
+our $VERSION = '0.19_01';
 
-use Carp (); # for default fail handler
-use Exporter ();
+use Exporter qw(import);
 
 our $TESTING_PERL_ONLY;
 eval{
@@ -15,21 +14,24 @@ eval{
 	XSLoader::load(__PACKAGE__, $VERSION);
 } unless $TESTING_PERL_ONLY;
 
-eval q{require Data::Util::PurePerl} # not to create "Data::Util::PurePerl" package
+eval q{require Data::Util::PurePerl} or die $@ # not to create "Data::Util::PurePerl" namespace
 	unless defined &instance;
 
 our @EXPORT_OK = qw(
 	is_scalar_ref is_array_ref is_hash_ref is_code_ref is_glob_ref is_regex_ref
-	is_instance
+	is_instance is_invocant
 
 	scalar_ref array_ref hash_ref code_ref glob_ref regex_ref
-	instance
+	instance invocant
 
 	anon_scalar neat
 
 	get_stash
 	install_subroutine
 	get_code_info
+
+	mkopt
+	mkopt_hash
 );
 our %EXPORT_TAGS = (
 	all => \@EXPORT_OK,
@@ -44,26 +46,6 @@ our %EXPORT_TAGS = (
 	)],
 );
 
-sub import{
-	my $i = 0;
-	while($i < @_){
-		my $cmd = $_[$i];
-
-		if($cmd eq '-fast_isa'){
-			no warnings 'redefine';
-			*UNIVERSAL::isa = \&fast_isa;
-			splice @_, $i, 1;
-		}
-		elsif($cmd eq '-fail_handler'){
-			_fail_handler(scalar(caller), $_[$i+1]);
-			splice @_, $i, 2;
-		}
-		else{
-			$i++;
-		}
-	}
-	goto &Exporter::import;
-}
 
 
 1;
@@ -75,7 +57,7 @@ Data::Util - A selection of utilities for data and data types
 
 =head1 VERSION
 
-This document describes Data::Util version 0.11
+This document describes Data::Util version 0.19_01
 
 =head1 SYNOPSIS
 
@@ -170,6 +152,12 @@ For an instance of I<class>.
 It is equivalent to something like
 C<< Scalar::Util::blessed($value) && $value->isa($class) >>.
 
+=item is_invocant(value)
+
+For an invocant, i.e. a blessed reference or existent class name.
+
+If I<value> is a valid class name but does not exist, it will return false.
+
 =back
 
 =head2 Validating functions
@@ -210,6 +198,26 @@ For a regular expression reference.
 =item instance(value, class)
 
 For an instance of I<class>.
+
+=item invocant(value)
+
+For an invocant, i.e. a blessed reference or existent class name.
+
+If I<value> is a valid class name and the class exists, then it returns
+the canonical class name, which is logically cleanuped. That is, it does
+C<< $value =~ s/^::(?:main::)*//; >> before returns it.
+
+NOTE:
+The canonization is because some versions of perl has an inconsistency
+on package names:
+
+	package ::Foo; # OK
+	my $x = bless {}, '::Foo'; # OK
+	ref($x)->isa('Foo'); # Fatal
+
+The last sentence causes a fatal error:
+C<Can't call method "isa" without package or object reference>.
+However, C<< invocant(ref $x)->isa('Foo') >> is always OK.
 
 =back
 
@@ -257,29 +265,15 @@ To re-install I<subr>, use C<< no warnings 'redefine' >> directive:
 
 Returns a pair of elements, the package name and the subroutine name of I<subr>.
 
-It is the same function as C<Sub::Identify::get_code_info()>.
+This is the same function as C<Sub::Identify::get_code_info()>.
 
-=back
+=item mkopt(input, moniker, require_unique, must_be)
 
-=head2 Subdirectives
+This is the same function as C<Data::OptList::mkopt()>.
 
-=over 4
+=item mkopt_hash(input, moniker, must_be)
 
-=item -fast_isa
-
-Replaces C<UNIVERSAL::isa()> by C<fast_isa>, which is even faster.
-
-This alternative subroutine passes all the F<PERL-DIST/t/op/universal.t>
-(included as F<Data-Util/t/10_fast_isa.t>).
-
-This subdirective is global-scoped.
-
-=item -fail_handler => \&handler
-
-Set a custom fail handler. The handler is called when a
-validation fails.
-
-This subdirective is package-scoped.
+This is the same function as C<Data::OptList::mkopt_hash()>.
 
 =back
 
@@ -300,6 +294,8 @@ L<Params::Util>.
 L<Scalar::Util>.
 
 L<Sub::Identify>.
+
+L<Data::OptList>.
 
 =head1 AUTHOR
 

@@ -6,7 +6,7 @@ DataUtil.xs
 example/gen_bench.pl
 example/get_stash_bench.pl
 example/inst_bench.pl
-example/isa_bench.pl
+example/mkopt_bench.pl
 example/neat.pl
 example/ref_bench.pl
 inc/Module/Install.pm
@@ -17,6 +17,7 @@ inc/Module/Install/Makefile.pm
 inc/Module/Install/MakeMaker.pm
 inc/Module/Install/Metadata.pm
 lib/Data/Util.pm
+lib/Data/Util/Error.pm
 lib/Data/Util/JA.pod
 lib/Data/Util/PurePerl.pm
 Makefile.PL
@@ -38,16 +39,19 @@ t/06_subroutine.t
 t/07_threads.t
 t/08_mgvars.t
 t/09_paranoia.t
-t/10_fast_isa.t
 t/11_fail_handler.t
 t/12_in_attr_handler.t
+t/13_optlist.t
 t/pp01_refs.t
 t/pp02_inst.t
 t/pp03_gen.t
 t/pp04_overloaded.t
 t/pp05_get_stash.t
 t/pp06_subroutine.t
+t/pp07_threads.t
+t/pp08_mgvars.t
 t/pp11_fail_handler.t
 t/pp12_in_attr_handler.t
+t/pp13_optlist.t
 xt/01_pod.t
 xt/02_pod-coverage.t

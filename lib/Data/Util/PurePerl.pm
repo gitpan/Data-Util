@@ -1,23 +1,26 @@
 package Data::Util::PurePerl;
 
+die qq{Don't use Data::Util::PurePerl directly, use Data::Util instead\n}
+	if caller() ne 'Data::Util';
+
 package
 	Data::Util;
 
 use strict;
 use warnings;
 
-use Carp ();
 use Scalar::Util ();
 use overload ();
 
 
-Carp::croak(q{Don't use Data::Util::PurePerl directly, use Data::Util instead})
-	if caller() ne 'Data::Util';
-
-
-my %fail_handler;
-
-*fast_isa = \&UNIVERSAL::isa;
+sub _croak{
+	require Data::Util::Error;
+	Data::Util::Error->throw(@_);
+}
+sub _fail{
+	require Data::Util::Error;
+	Data::Util::Error->throw(sprintf 'Validation failed: you must supply %s, not %s', @_);
+}
 
 sub _overloaded{
 	return Scalar::Util::blessed($_[0])
@@ -48,11 +51,21 @@ sub is_regex_ref{
 }
 sub is_instance{
 	my($obj, $class) = @_;
-	Carp::croak('Invalid class name ', neat($class), ' supplied')
+	_fail('a class name', neat $class)
 		unless _is_string($class);
 
 	return Scalar::Util::blessed($obj) && $obj->isa($class);
 }
+sub is_invocant{
+	my($x) = @_;
+	if(ref $x){
+		return !!Scalar::Util::blessed($x);
+	}
+	else{
+		return !!get_stash($x);
+	}
+}
+
 
 sub scalar_ref{
 	return ref($_[0]) eq 'SCALAR' || ref($_[0]) eq 'REF' || _overloaded($_[0], '${}')
@@ -81,11 +94,29 @@ sub regex_ref{
 }
 sub instance{
 	my($obj, $class) = @_;
-	Carp::croak('Invalid class name ', neat($class), ' supplied')
+
+	_fail('a class name', neat($class))
 		unless _is_string($class);
 
 	return Scalar::Util::blessed($obj) && $obj->isa($class)
 		? $obj : _fail("an instance of $class", neat($obj));
+}
+
+sub invocant{
+	my($x) = @_;
+	if(ref $x){
+		if(Scalar::Util::blessed($x)){
+			return $x;
+		}
+	}
+	else{
+		if(get_stash($x)){
+			$x =~ s/^:://;
+			$x =~ s/(?:main::)+//;
+			return $x eq '' ? 'main' : $x;
+		}
+	}
+	_fail('an invocant', neat($x));
 }
 
 sub get_stash{
@@ -109,17 +140,12 @@ sub anon_scalar{
 sub install_subroutine{
 	my($into, $as, $code) = @_;
 
-	Carp::croak('Usage: Data::Util::install_subroutine(into, as, code)')
+	_croak('Usage: Data::Util::install_subroutine(into, as, code)')
 		if @_ != 3;
 
-	_is_string($into)
-		or Carp::croak('Invalid package name ' . neat($into) . ' supplied');
-
-	_is_string($as)
-		or Carp::croak('Invalid subroutine name ' . neat($as) . ' supplied');
-
-	is_code_ref($code)
-		or Carp::croak('Invalid CODE reference ' . neat($code) . ' supplied');
+	_is_string($into)  or _fail('a package name', neat($into));
+	_is_string($as)    or _fail('a subroutine name', neat($as));
+	is_code_ref($code) or _fail('a CODE reference', neat($code));
 
 	my $slot = do{ no strict 'refs'; \*{ $into . '::' . $as } };
 
@@ -133,10 +159,11 @@ sub install_subroutine{
 
 sub get_code_info{
 	my($code) = @_;
-	ref($code) eq 'CODE' or Carp::croak('Invalid CODE reference '.neat($code));
+
+	is_code_ref($code) or _fail('a CODE reference', neat($code));
 
 	require B;
-	my $cv = B::svref_2object($code);
+	my $cv = B::svref_2object(\&{$code});
 	return unless $cv->GV->isa('B::GV');
 	return ($cv->GV->STASH->NAME, $cv->GV->NAME);
 }
@@ -150,6 +177,7 @@ sub neat{
 	elsif(defined $s){
 		return $s   if Scalar::Util::looks_like_number($s);
 		return "$s" if is_glob_ref(\$s);
+
 		require B;
 		return B::perlstring($s);
 	}
@@ -158,36 +186,13 @@ sub neat{
 	}
 }
 
-
-sub _fail_handler{
-	my $pkg = shift;
-
-	my $h = $fail_handler{$pkg};
-
-	if(@_){
-		my $handler = shift;
-		if(is_code_ref($handler)){
-			$fail_handler{$pkg} = $handler;
-		}
-		else{
-			Carp::croak('Not a CODE reference', neat($handler));
-		}
-	}
-	return $h;
+sub mkopt{
+	require Data::OptList;
+	goto &Data::OptList::mkopt;
 }
-
-sub _fail{
-	my($valid, $invalid) = @_;
-
-	my $msg = "Validation failed: you must supply $valid, not $invalid";
-
-	my $pkg = caller(1);
-	if($fail_handler{$pkg}){
-		Carp::croak( $fail_handler{$pkg}->($msg) );
-	}
-	else{
-		Carp::confess($msg);
-	}
+sub mkopt_hash{
+	require Data::OptList;
+	goto &Data::OptList::mkopt_hash;
 }
 
 1;

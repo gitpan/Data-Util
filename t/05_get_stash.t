@@ -1,12 +1,17 @@
 #!perl -w
 
+# get_stash(), is_invocant(), invocant()
+
 use strict;
 use warnings FATAL => 'all';
-use Test::More tests => 10;
+use Test::More tests => 32;
+use Test::Exception;
 
 use Tie::Scalar;
 
-use Data::Util qw(get_stash neat);
+use Data::Util qw(:all);
+
+#diag 'Testing ', $INC{'Data/Util/PurePerl.pm'} ? 'PurePerl' : 'XS';
 
 sub get_stash_pp{
 	my($pkg) = @_;
@@ -17,12 +22,22 @@ sub get_stash_pp{
 
 foreach my $pkg( qw(main strict Data::Util ::main::Data::Util)){
 	is get_stash($pkg), get_stash_pp($pkg), "get_stash for $pkg";
+	ok is_invocant($pkg), 'is_invocant';
+	ok invocant($pkg)->isa($pkg),    'invocant';
 }
 
-foreach my $pkg('not exists', 1, undef, [], *ok, ){
+foreach my $pkg('not_exists', 1, undef, [], *ok, ){
 	ok !defined(get_stash $pkg), 'get_stash for ' . neat($pkg) . '(invalid value)';
+	ok !is_invocant($pkg), 'is_invocant';
+	throws_ok{
+		invocant($pkg);
+	} qr/Validation failed/, 'invocant';
 }
 
-tie my($ts), 'Tie::StdScalar', 'main';
+my $x = tie my($ts), 'Tie::StdScalar', 'main';
 is get_stash($ts), get_stash_pp('main'), 'for magic variable';
+ok is_invocant($ts);
+ok invocant($ts);
 
+ok is_invocant($x), 'is_invocant() for an object';
+is invocant($x), $x, 'invocant() for an object';

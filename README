@@ -6,7 +6,9 @@ SYNOPSIS
 
 	use Data::Util qw(:all);
 
-	use Data::Util -fast_isa;
+	if(is_instance($obj, 'SomeClass')){
+		# ...
+	}
 
 DESCRIPTION
 

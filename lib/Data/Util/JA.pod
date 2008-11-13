@@ -7,7 +7,7 @@ Data::Util::JA - データとデータ型のためのユーティリティ集
 
 =head1 VERSION
 
-This document describes Data::Util version 0.11
+This document describes Data::Util version 0.19_01
 
 =head1 SYNOPSIS
 
@@ -220,25 +220,6 @@ I<subr>がコードリファレンスでないときも致命的エラーとな�
 
 =back
 
-=head2 Subdirectives
-
-=over 4
-
-=item -fast_isa
-
-C<UNIVERSAL::isa()>を同機能の高速版であるC<fast_isa()>で置き換えます。
-この代替ルーチンはPerlディストリビューションのF<universal.t>の
-全てのテストを通過するので，C<UNIVERSAL::isa()>の仕様に準じているといえます。
-
-このサブディレクティブはプログラム全体に効果を及ぼします。
-
-=item -fail_handler => \&handler
-
-検証ルーチンが呼び出すエラーハンドラを設定します。
-
-このサブディレクティブは呼び出し元のパッケージにのみ効果を及ぼします。
-
-=back
 
 =head1 DEPENDENCIES
 

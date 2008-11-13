@@ -5,10 +5,12 @@ use Test::More tests => 45;
 
 use Test::Exception;
 
-use Data::Util qw(:all);
+use Data::Util qw(:check :validate);
 use Symbol qw(gensym);
 
 use constant PP_ONLY => exists $INC{'Data/Util/PurePerl.pm'};
+
+diag "Testing ", PP_ONLY ? "PurePerl" : "XS";
 
 sub lval_f :lvalue{
 	my $f;
@@ -50,7 +52,6 @@ SKIP:{
 	skip 'in testing perl only', 1 if PP_ONLY;
 	ok!is_regex_ref(bless [], 'Regexp'), 'fake regexp';
 }
-
 
 ok scalar_ref(\''), 'scalar_ref';
 

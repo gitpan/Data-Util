@@ -1,5 +1,15 @@
 Revision history for Data-Util
 
+0.19_01 Wed Nov 12 22:33:23 2008
+	- some imcompatible change
+		- remove -fast_isa subdirective, which is no longer useful
+		- remove -fail_handler subdirective, use Data::Util::Error instead.
+	- add Data::Util::Error module for error handlers
+	- add invocant() and is_invocant()
+	- add mkopt() and mkopt_hash() which are compatible with Data::OptList
+	- improve error handlers to be inheritable
+	- fix install_subroutine() not to locate subroutines named by Sub::Name
+
 0.11 Mon Nov  3 10:09:57 2008
 	- fix possible segfault in get_code_info()
 

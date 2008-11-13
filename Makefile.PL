@@ -7,7 +7,9 @@ name 'Data-Util';
 
 all_from 'lib/Data/Util.pm';
 
-requires 'XSLoader'   => 0.06;
+requires 'Exporter'    => 5.57;
+requires 'XSLoader'    => 0.06;
+requires 'MRO::Compat' => 0.09 if $] < 5.010_000;
 
 test_requires 'Test::More'      => 0.62;
 test_requires 'Test::Exception' => 0.27;
@@ -20,7 +22,7 @@ for (@ARGV){
 	/^-pm/ and $use_xs = 0;
 	/^-xs/ and $use_xs = 1;
 }
-warn can_cc();
+
 if($use_xs){
 	makemaker_args(
 		DEFINE => '-DINLINE_STR_EQ',
@@ -32,6 +34,7 @@ else{
 		XS => {},
 		C  => [],
 	);
+	requires 'Data::OptList' => 0.103;
 }
 
 WriteMakefile(

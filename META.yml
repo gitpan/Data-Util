@@ -19,8 +19,9 @@ no_index:
     - inc
     - t
 requires:
+  Exporter: 5.57
   XSLoader: 0.06
   perl: 5.8.1
 resources:
   license: http://dev.perl.org/licenses/
-version: 0.11
+version: 0.19_01

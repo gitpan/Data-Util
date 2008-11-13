@@ -116,7 +116,7 @@ use warnings FATAL => 'redefine';
 
 throws_ok{
 	get_code_info(undef);
-} qr/Invalid CODE reference/;
+} qr/CODE reference/;
 
 throws_ok{
 	Foo->install_subroutine();
@@ -128,15 +128,15 @@ throws_ok{
 
 throws_ok{
 	Data::Util::install_subroutine(undef, foo => \&foo);
-} qr/Invalid package name/;
+} qr/package name/;
 
 throws_ok{
 	Foo->install_subroutine(PI => 3.14);
-} qr/Invalid CODE reference/;
+} qr/CODE reference/;
 
 throws_ok{
 	Foo->install_subroutine(undef, sub{});
-} qr/Invalid subroutine name/;
+} qr/subroutine name/;
 throws_ok{
 	Foo->install_subroutine([], sub{});
-} qr/Invalid subroutine name/;
+} qr/subroutine name/;
