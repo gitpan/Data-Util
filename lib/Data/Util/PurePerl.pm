@@ -1,6 +1,6 @@
 package Data::Util::PurePerl;
 
-die qq{Don't use Data::Util::PurePerl directly, use Data::Util instead\n}
+die qq{Don't use Data::Util::PurePerl directly, use Data::Util instead.\n}
 	if caller() ne 'Data::Util';
 
 package
@@ -15,11 +15,10 @@ use overload ();
 
 sub _croak{
 	require Data::Util::Error;
-	Data::Util::Error->throw(@_);
+	goto &Data::Util::Error::croak;
 }
 sub _fail{
-	require Data::Util::Error;
-	Data::Util::Error->throw(sprintf 'Validation failed: you must supply %s, not %s', @_);
+	_croak(sprintf 'Validation failed: you must supply %s, not %s', @_);
 }
 
 sub _overloaded{
@@ -74,7 +73,7 @@ sub scalar_ref{
 }
 sub array_ref{
 	return ref($_[0]) eq 'ARRAY' || _overloaded($_[0], '@{}')
-		? $_[0] : _fail('a SCALAR reference', neat($_[0]));
+		? $_[0] : _fail('an ARRAY reference', neat($_[0]));
 }
 sub hash_ref{
 	return ref($_[0]) eq 'HASH' || _overloaded($_[0], '%{}')
@@ -172,7 +171,7 @@ sub neat{
 	my($s) = @_;
 
 	if(ref $s){
-		return overload::StrVal($s);
+		return ref($s) eq 'Regexp' ? "qr{$s}" : overload::StrVal($s);
 	}
 	elsif(defined $s){
 		return $s   if Scalar::Util::looks_like_number($s);
@@ -186,13 +185,70 @@ sub neat{
 	}
 }
 
-sub mkopt{
-	require Data::OptList;
-	goto &Data::OptList::mkopt;
+my %test_for = (
+	CODE   => \&is_code_ref,
+	HASH   => \&is_hash_ref,
+	ARRAY  => \&is_array_ref,
+	SCALAR => \&is_scalar_ref,
+	GLOB   => \&is_glob_ref,
+);
+
+
+sub __is_a {
+	my ($got, $expected) = @_;
+
+	return grep{ __is_a($got, $_) } @{$expected} if ref $expected;
+
+	my $t = $test_for{$expected};
+	return defined($t) ? $t->($got) : is_instance($got, $expected);
 }
-sub mkopt_hash{
-	require Data::OptList;
-	goto &Data::OptList::mkopt_hash;
+
+sub mkopt{
+	my($opt_list, $moniker, $require_unique, $must_be) = @_;
+
+	return [] unless $opt_list;
+
+	$opt_list = [
+		map { $_ => (ref $opt_list->{$_} ? $opt_list->{$_} : ()) } keys %$opt_list
+	] if is_hash_ref($opt_list);
+
+	my @return;
+	my %seen;
+
+	my $vh = is_hash_ref($must_be);
+	my $validator = $must_be;
+
+	for(my $i = 0; $i < @$opt_list; $i++) {
+		my $name = $opt_list->[$i];
+		my $value;
+
+		if($require_unique && $seen{$name}++) {
+			_croak("Validation failed: Multiple definitions provided for $name in $moniker opt list")
+		}
+
+		if   ($i == $#$opt_list)             { $value = undef;            }
+		elsif(not defined $opt_list->[$i+1]) { $value = undef; $i++       }
+		elsif(ref $opt_list->[$i+1])         { $value = $opt_list->[++$i] }
+		else                                 { $value = undef;            }
+
+		if (defined $value and defined( $vh ? ($validator = $must_be->{$name}) : $validator )){
+			unless(__is_a($value, $validator)) {
+				_croak("Validation failed: ".ref($value)."-ref values are not valid for $name in $moniker opt list");
+			}
+		}
+
+		push @return, [ $name => $value ];
+	}
+
+	return \@return;
+}
+
+sub mkopt_hash {
+	my($opt_list, $moniker, $must_be) = @_;
+	return {} unless $opt_list;
+
+	my %hash = map { $_->[0] => $_->[1] } @{ mkopt($opt_list, $moniker, 1, $must_be) };
+	return \%hash;
 }
 
 1;

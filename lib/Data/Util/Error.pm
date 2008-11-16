@@ -23,14 +23,9 @@ sub fail_handler{
 	return $h;
 }
 
-sub throw{
-	shift; # this class
-
+sub croak{
 	if($] < 5.010_000){
 		require MRO::Compat;
-	}
-	else{
-		require mro;
 	}
 
 	my $caller_pkg;
@@ -48,14 +43,17 @@ sub throw{
 			last;
 		}
 	}
-	die $fail_handler ? $fail_handler->(@_) : do{ require Carp; Carp::longmess(@_) };
+
+	require Carp;
+	local $Carp::CarpLevel = $Carp::CarpLevel + $i;
+	die $fail_handler ? &{$fail_handler} : &Carp::longmess;
 }
 1;
 __END__
 
 =head1 NAME
 
-Data::Util::Error - Deals with errors in Data::Util
+Data::Util::Error - Deals with package-specific errors in Data::Util
 
 =head1 SYNOPSIS
 
@@ -67,5 +65,17 @@ Data::Util::Error - Deals with errors in Data::Util
 		my $x_ref = array_ref shift; # Foo::Exception is thrown if invalid
 		# ...
 	}
+
+=head1 Functions
+
+=over 4
+
+=item Data::Util::Error->fail_handler()
+
+=item Data::Util::Error->fail_handler($handler)
+
+=item Data::Util::Error::croak(@args)
+
+=back
 
 =cut

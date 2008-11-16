@@ -2,6 +2,8 @@
 
 #include "data-util.h"
 
+#define PV_LIMIT 20
+
 static int
 is_identifier_cstr(const char* pv, const STRLEN len){
 	if(isIDFIRST(*pv)){
@@ -26,7 +28,11 @@ du_neat_cat(pTHX_ SV* const dsv, SV* x, const int level){
 		return;
 	}
 
-	if(SvROK(x)){
+	if(SvRXOK(x)){ /* regex */
+		Perl_sv_catpvf(aTHX_ dsv, "qr{%"SVf"}", x);
+		return;
+	}
+	else if(SvROK(x)){
 		x = SvRV(x);
 
 		if(SvOBJECT(x)){
@@ -65,9 +71,9 @@ du_neat_cat(pTHX_ SV* const dsv, SV* x, const int level){
 			sv_catpvs(dsv, "{");
 			if(val){
 				if(!is_identifier_cstr(key, klen)){
-					SV* sv = newSV(klen + 5);
+					SV* sv = newSV(PV_LIMIT + 5);
 					sv_2mortal(sv);
-					key = pv_display(sv, key, klen, klen, klen);
+					key = pv_display(sv, key, klen, klen, PV_LIMIT);
 				}
 				Perl_sv_catpvf(aTHX_ dsv, "%s => ", key);
 				du_neat_cat(aTHX_ dsv, val, level+1);
@@ -93,10 +99,9 @@ du_neat_cat(pTHX_ SV* const dsv, SV* x, const int level){
 		else{
 			STRLEN cur;
 			char* const pv = SvPV(x, cur);
-			static const STRLEN pvlim = 15;
-			SV* sv = newSV(pvlim + 5);
+			SV* sv = newSV(PV_LIMIT + 5);
 			sv_2mortal(sv);
-			pv_display(sv, pv, cur, cur, pvlim);
+			pv_display(sv, pv, cur, cur, PV_LIMIT);
 			sv_catsv(dsv, sv);
 		}
 	}
@@ -114,6 +119,7 @@ du_neat(pTHX_ SV* x){
 	ENTER;
 	SAVETMPS;
 
+	SvGETMAGIC(x);
 	du_neat_cat(aTHX_ dsv, x, 0);
 
 	FREETMPS;

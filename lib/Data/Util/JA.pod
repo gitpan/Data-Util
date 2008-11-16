@@ -7,7 +7,7 @@ Data::Util::JA - データとデータ型のためのユーティリティ集
 
 =head1 VERSION
 
-This document describes Data::Util version 0.19_01
+This document describes Data::Util version 0.20
 
 =head1 SYNOPSIS
 
@@ -180,7 +180,8 @@ I<value>を参照する匿名スカラーリファレンスを生成します。
 =item neat(value)
 
 I<value>を表示に適するよう整形した文字列を返します。
-これはエラーメッセージのために使うことが想定されています。
+C<<do{ defined($value) ? qq{"$value"} : 'undef' }>>を置き換える機能
+として提供されます。
 
 =item get_stash(package)
 
@@ -197,7 +198,7 @@ I<package>が存在しなければそのスタッシュは生成せずC<undef>�
 
 C<< do{ no strict 'refs'; *{$package.'::'.$name} = \&subr; } >>というコードと
 ほぼ等価です。さらに，I<subr>が匿名サブルーチンであればI<package>に
-名前付きサブルーチンI<&package::name>として再配置します。
+名前付きサブルーチンI<&package::name>として配置します。
 
 サブルーチンを再インストールするときは，C<< no warnings 'redefine' >>
 ディレクティブを使ってください。
@@ -209,14 +210,26 @@ I<package>かI<name>が未定義値またはリファレンスであれば致命
 I<subr>がコードリファレンスでないときも致命的エラーとなりますが，
 オーバーロードマジックは考慮されます。
 
-なお，Pure Perl版のコードでは匿名サブルーチンの再配置は行いません。
+なお，Pure Perl版のコードでは匿名サブルーチンの配置は行いません。
 
 =item get_code_info(subr)
 
 コードリファレンスI<subr>のパッケージと名前のペアを返します。
 これはC<Sub::Identify::get_code_info()>と同じ機能です。
 
-この関数はオーバーロードマジックを考慮しません。
+=item mkopt(input, moniker, require_unique, must_be)
+
+I<input>を元に配列リファレンスを作成します。
+
+これはC<Data::OptList::mkopt()>に似ています。それに加えて，I<must_be>は
+名前と型のペアからなるハッシュリファレンスでもかまいません。
+
+=item mkopt_hash(input, moniker, must_be)
+
+I<input>を元にハッシュリファレンスを作成します。
+
+これはC<Data::OptList::mkopt_hash()>に似ています。それに加えて，I<must_be>は
+名前と型のペアからなるハッシュリファレンスでもかまいません。
 
 =back
 

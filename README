@@ -10,11 +10,18 @@ SYNOPSIS
 		# ...
 	}
 
+	Or, try "perl -Mblib example/synopsis.pl" after "make test".
+
 DESCRIPTION
 
 	This module provides utilities for data and data types.
 
 	See "perldoc Data::Util" for the rest of the document.
+
+BENCHMARKS
+
+	There are benchmarks in "benchmark/" directory,
+	e.g. try "perl -Mblib example/inst_bench.pl" after "make test".
 
 DEPENDENCIES
 

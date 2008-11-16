@@ -4,7 +4,7 @@
 
 use strict;
 use warnings FATAL => 'all';
-use Test::More tests => 32;
+use Test::More tests => 34;
 use Test::Exception;
 
 use Tie::Scalar;
@@ -41,3 +41,7 @@ ok invocant($ts);
 
 ok is_invocant($x), 'is_invocant() for an object';
 is invocant($x), $x, 'invocant() for an object';
+
+is invocant('::Data::Util'), 'Data::Util';
+is invocant(''),             'main';
+

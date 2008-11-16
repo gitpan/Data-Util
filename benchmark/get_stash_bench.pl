@@ -4,10 +4,13 @@ use strict;
 
 use Benchmark qw(:all);
 
+use FindBin qw($Bin);
+use lib $Bin;
+use Common;
+
 use Data::Util qw(:all);
 
-
-print "Perl $] on $^O\n";
+signeture 'Data::Util' => \&get_stash;
 
 my $pkg = 'Data::Util';
 

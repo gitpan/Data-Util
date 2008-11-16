@@ -1,7 +1,7 @@
 #!perl -w
 
 use strict;
-use Test::More tests => 41;
+use Test::More tests => 46;
 use Test::Exception;
 
 use Data::Util qw(:all);
@@ -13,15 +13,29 @@ BEGIN{
 	sub new{
 		bless {}, shift;
 	}
+
+	package MyArray;
+	our @ISA = qw(Foo);
+	use overload
+		bool  => sub{ 1 },
+		'@{}' => sub{  ['ARRAY'] },
+	;
+	package MyHash;
+	our @ISA = qw(Foo);
+	use overload
+		bool  => sub{ 1 },
+		'%{}' => sub{ +{ foo => 'ARRAY' } },
+	;
 }
+
 use constant true  => 1;
 use constant false => 0;
 
 # mkopt
 
-is_deeply mkopt(undef), [];
+is_deeply mkopt(undef), [], 'mkopt()';
 
-is_deeply mkopt([]), [], 'mkopt';
+is_deeply mkopt([]), [];
 is_deeply mkopt(['foo']), [ [foo => undef] ];
 is_deeply mkopt([foo => undef]), [ [foo => undef] ];
 is_deeply mkopt([foo => [42]]), [ [foo => [42]] ];
@@ -38,14 +52,23 @@ is_deeply mkopt([foo => anon_scalar], undef, false, 'SCALAR'), [[foo => anon_sca
 is_deeply mkopt([foo => \&ok],       undef, false, 'CODE'),   [[foo => \&ok]];
 is_deeply mkopt([foo => Foo->new], undef, false, 'Foo'), [[foo => Foo->new]];
 
-SKIP:{
-	skip "for XS specific function", 2 if PP_ONLY;
-	is_deeply mkopt([foo => [], qw(bar)], undef, false, {foo => 'ARRAY'}),   [[foo => []], [bar => undef]];
-	is_deeply mkopt([foo => [], bar => {}], undef, false, {foo => ['CODE', 'ARRAY'], bar => 'HASH'}), [[foo => []], [bar => {}]];
-}
+is_deeply mkopt(MyArray->new()), [ [ARRAY => undef] ], 'overloaded data';
+
+is_deeply mkopt([foo => [], qw(bar)], undef, false, {foo => 'ARRAY'}),   [[foo => []], [bar => undef]];
+is_deeply mkopt([foo => [], bar => {}], undef, false, {foo => ['CODE', 'ARRAY'], bar => 'HASH'}), [[foo => []], [bar => {}]];
+
+is_deeply mkopt([foo => [42]], undef, false, MyArray->new()), [[foo => [42]]], 'overloaded validator (ARRAY)';
+
+is_deeply mkopt([foo => [42]], 'test', false, MyHash->new()),  [[foo => [42]]], 'overloaded validator (HASH)';
+dies_ok{
+	mkopt([foo => {}], 'test', false, MyHash->new());
+};
+
 # mkopt_hash
 
-is_deeply mkopt_hash([]), {}, 'mkopt_hash';
+is_deeply mkopt_hash(undef), {}, 'mkopt_hash()';
+
+is_deeply mkopt_hash([]), {};
 is_deeply mkopt_hash(['foo']), { foo => undef };
 is_deeply mkopt_hash([foo => undef]), { foo => undef };
 is_deeply mkopt_hash([foo => [42]]), { foo => [42] };
@@ -58,11 +81,9 @@ is_deeply mkopt_hash([foo => [], qw(bar)], undef, 'ARRAY'), {foo => [], bar => u
 is_deeply mkopt_hash([foo => [], qw(bar)], undef, ['CODE', 'ARRAY']), {foo => [], bar => undef};
 is_deeply mkopt_hash([foo => Foo->new], undef, 'Foo'), {foo => Foo->new};
 
-SKIP:{
-	skip "for XS specific function", 2 if PP_ONLY;
-	is_deeply mkopt_hash([foo => [], qw(bar)], undef, {foo => 'ARRAY'}),   {foo => [], bar => undef};
-	is_deeply mkopt_hash([foo => [], bar => {}], undef, {foo => ['CODE', 'ARRAY'], bar => 'HASH'}), {foo => [], bar => {}};
-}
+is_deeply mkopt_hash([foo => [], qw(bar)], undef, {foo => 'ARRAY'}),   {foo => [], bar => undef};
+is_deeply mkopt_hash([foo => [], bar => {}], undef, {foo => ['CODE', 'ARRAY'], bar => 'HASH'}), {foo => [], bar => {}};
+
 # XS specific misc. check
 my $key = 'foo';
 my $ref = mkopt([$key]);

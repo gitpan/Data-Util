@@ -53,7 +53,8 @@ SKIP:{
 	ok!is_regex_ref(bless [], 'Regexp'), 'fake regexp';
 }
 
-ok scalar_ref(\''), 'scalar_ref';
+ok scalar_ref(\42), 'scalar_ref';
+ok scalar_ref(\\42);
 
 throws_ok{
 	scalar_ref([]);
@@ -70,7 +71,6 @@ throws_ok{
 throws_ok{
 	scalar_ref('SCALAR');
 } qr/Validation failed/;
-
 throws_ok{
 	scalar_ref(\*ok);
 } qr/Validation failed/;
@@ -83,13 +83,6 @@ throws_ok{
 ok hash_ref({}), 'hash_ref';
 throws_ok{
 	hash_ref([]);
-} qr/Validation failed/;
-
-throws_ok{
-	my @a;
-	push @a, \@a; # recursive array
-	hash_ref(\@a);
-	@a = ();
 } qr/Validation failed/;
 
 

@@ -4,15 +4,14 @@ use 5.008_001;
 use strict;
 use warnings;
 
-our $VERSION = '0.19_01';
+our $VERSION = '0.20';
 
 use Exporter qw(import);
 
-our $TESTING_PERL_ONLY;
-eval{
+our $TESTING_PERL_ONLY or eval{
 	require XSLoader;
 	XSLoader::load(__PACKAGE__, $VERSION);
-} unless $TESTING_PERL_ONLY;
+};
 
 eval q{require Data::Util::PurePerl} or die $@ # not to create "Data::Util::PurePerl" namespace
 	unless defined &instance;
@@ -57,13 +56,14 @@ Data::Util - A selection of utilities for data and data types
 
 =head1 VERSION
 
-This document describes Data::Util version 0.19_01
+This document describes Data::Util version 0.20
 
 =head1 SYNOPSIS
 
 	use Data::Util qw(:validate);
 
 	sub foo{
+		# they will die if invalid values are supplied
 		my $sref = scalar_ref(shift);
 		my $aref = array_ref(shift);
 		my $href = hash_ref(shift);
@@ -154,7 +154,7 @@ C<< Scalar::Util::blessed($value) && $value->isa($class) >>.
 
 =item is_invocant(value)
 
-For an invocant, i.e. a blessed reference or existent class name.
+For an invocant, i.e. a blessed reference or existent package name.
 
 If I<value> is a valid class name but does not exist, it will return false.
 
@@ -201,7 +201,7 @@ For an instance of I<class>.
 
 =item invocant(value)
 
-For an invocant, i.e. a blessed reference or existent class name.
+For an invocant, i.e. a blessed reference or existent package name.
 
 If I<value> is a valid class name and the class exists, then it returns
 the canonical class name, which is logically cleanuped. That is, it does
@@ -239,6 +239,8 @@ Generates an anonymous scalar reference to I<value>.
 
 Returns a neat string that is suitable to display.
 
+This is a smart version of C<<do{ defined($value) ? qq{"$value"} : 'undef' }>>.
+
 =item get_stash(package)
 
 Returns the symbol table hash (also known as B<stash>) of I<package>
@@ -269,11 +271,17 @@ This is the same function as C<Sub::Identify::get_code_info()>.
 
 =item mkopt(input, moniker, require_unique, must_be)
 
-This is the same function as C<Data::OptList::mkopt()>.
+Produces an array of an array reference from I<input>.
+
+This is similar C<Data::OptList::mkopt()>. In addition to it,
+I<must_be> can be a HASH reference with C<< name => type >> pairs.
 
 =item mkopt_hash(input, moniker, must_be)
 
-This is the same function as C<Data::OptList::mkopt_hash()>.
+Produces a hash reference from I<input>.
+
+This is similar to C<Data::OptList::mkopt_hash()>. In addition to it,
+I<must_be> can be a HASH reference with C<< name => tyupe >> pairs.
 
 =back
 

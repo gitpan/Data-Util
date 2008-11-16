@@ -4,17 +4,21 @@ use warnings FATAL => 'all';
 
 use Benchmark qw(:all);
 
+use FindBin qw($Bin);
+use lib $Bin;
+use Common;
+
 use Params::Util qw(_ARRAY0);
 use Data::Util qw(:all);
 
-print "Perl $] on $^O\n";
+signeture 'Data::Util' => \&is_array, 'Params::Util' => \&_ARRAY0;
 
-print "Params::Util::_ARRAY0() vs. Scalar::Util::Ref::is_array_ref() vs. ref()\n";
+print "Benchmark: Params::Util::_ARRAY0() vs. Data::Util::is_array() vs. ref()\n";
 
 foreach my $o([], {}, bless({}, 'Foo'), undef){
 	print "\nFor ", neat($o), "\n";
 
-	cmpthese timethese -1 => {
+	cmpthese -1 => {
 		'_ARRAY0' => sub{
 			for(1 .. 10){
 				if(_ARRAY0($o)){
@@ -22,7 +26,6 @@ foreach my $o([], {}, bless({}, 'Foo'), undef){
 				}
 			}
 		},
-
 		'is_array_ref' => sub{
 			for(1 .. 10){
 				if(is_array_ref($o)){

@@ -7,6 +7,8 @@
 
 typedef struct{
 	GV* universal_isa;
+
+	GV* croak;
 } my_cxt_t;
 START_MY_CXT;
 
@@ -45,6 +47,7 @@ my_croak(pTHX_ const char* const fmt, ...)
 
 static void
 my_croak(pTHX_ const char* const fmt, ...){
+	dMY_CXT;
 	dSP;
 	SV* message;
 	va_list args;
@@ -52,8 +55,11 @@ my_croak(pTHX_ const char* const fmt, ...){
 	SAVETMPS;
 	ENTER;
 
-	Perl_load_module(aTHX_ PERL_LOADMOD_NOIMPORT, newSVpvs("Data::Util::Error"), NULL, NULL);
-
+	if(!MY_CXT.croak){
+		Perl_load_module(aTHX_ PERL_LOADMOD_NOIMPORT, newSVpvs("Data::Util::Error"), NULL, NULL);
+		MY_CXT.croak = CvGV(get_cv("Data::Util::Error::croak", GV_ADD));
+		SvREFCNT_inc_simple_void_NN(MY_CXT.croak);
+	}
 
 	va_start(args, fmt);
 	message = vnewSVpvf(fmt, &args);
@@ -62,14 +68,10 @@ my_croak(pTHX_ const char* const fmt, ...){
 	sv_2mortal(message);
 
 	PUSHMARK(SP);
-
-	EXTEND(SP, 2);
-	mPUSHp("Data::Util::Error", sizeof("Data::Util::Error")-1);
-	PUSHs(message);
-
+	XPUSHs(message);
 	PUTBACK;
 
-	call_method("throw", G_VOID);
+	call_sv((SV*)MY_CXT.croak, G_VOID);
 
 	/* not reached */
 	FREETMPS;
@@ -79,9 +81,12 @@ my_croak(pTHX_ const char* const fmt, ...){
 
 static bool
 has_amagic_converter(pTHX_ SV* const sv, const my_ref_t t){
-	const AMT* const amt = (AMT*)mg_find((SV*)SvSTASH(SvRV(sv)), PERL_MAGIC_overload_table)->mg_ptr;
+	const AMT* amt;
 	int o = 0;
 
+	if(!SvAMAGIC(sv)) return FALSE;
+
+	amt = (AMT*)mg_find((SV*)SvSTASH(SvRV(sv)), PERL_MAGIC_overload_table)->mg_ptr;
 	assert(amt);
 	assert(AMT_AMAGIC(amt));
 
@@ -119,11 +124,8 @@ my_check_type(pTHX_ SV* const sv, const my_ref_t t){
 		if(t == T_RX){ /* regex? */
 			return SvRXOK(sv);
 		}
-		if(SvAMAGIC(sv)){
-			return has_amagic_converter(aTHX_ sv, t);
-		}
 		else{
-			return FALSE;
+			return has_amagic_converter(aTHX_ sv, t);
 		}
 	}
 
@@ -150,55 +152,37 @@ my_check_type(pTHX_ SV* const sv, const my_ref_t t){
 
 static AV*
 my_deref_av(pTHX_ SV* sv){
-	if(!check_type(sv, T_AV)){
-		Perl_croak(aTHX_ "Not %s reference", ref_names[T_AV]);
-	}
-	if(SvTYPE(SvRV(sv)) != SVt_PVAV){
+	if(has_amagic_converter(aTHX_ sv, T_AV)){
 		SV* const* sp = &sv; /* used in tryAMAGICunDEREF macro */
-		SvGETMAGIC(sv);
 		tryAMAGICunDEREF(to_av);
-		if(SvROK(sv) && SvTYPE(SvRV(sv)) == SVt_PVAV){
-			return (AV*)SvRV(sv);
-		}
-		else{
-			Perl_croak(aTHX_ "Not %s reference", ref_names[T_AV]);
-		}
+	}
+
+	if(!(SvROK(sv) && SvTYPE(SvRV(sv)) == SVt_PVAV)){
+		my_croak(aTHX_ "Not %s reference", ref_names[T_AV]);
 	}
 	return (AV*)SvRV(sv);
 }
 static HV*
 my_deref_hv(pTHX_ SV* sv){
-	if(!check_type(sv, T_HV)){
-		Perl_croak(aTHX_ "Not %s reference", ref_names[T_HV]);
-	}
-	if(SvTYPE(SvRV(sv)) != SVt_PVHV){
+	if(has_amagic_converter(aTHX_ sv, T_HV)){
 		SV* const* sp = &sv; /* used in tryAMAGICunDEREF macro */
-		SvGETMAGIC(sv);
 		tryAMAGICunDEREF(to_hv);
-		if(SvROK(sv) && SvTYPE(SvRV(sv)) == SVt_PVHV){
-			return (HV*)SvRV(sv);
-		}
-		else{
-			Perl_croak(aTHX_ "Not %s reference", ref_names[T_HV]);
-		}
+	}
+
+	if(!(SvROK(sv) && SvTYPE(SvRV(sv)) == SVt_PVHV)){
+		my_croak(aTHX_ "Not %s reference", ref_names[T_HV]);
 	}
 	return (HV*)SvRV(sv);
 }
 static CV*
 my_deref_cv(pTHX_ SV* sv){
-	if(!check_type(sv, T_CV)){
-		Perl_croak(aTHX_ "Not %s reference", ref_names[T_CV]);
-	}
-	if(SvTYPE(SvRV(sv)) != SVt_PVCV){
+	if(has_amagic_converter(aTHX_ sv, T_CV)){
 		SV* const* sp = &sv; /* used in tryAMAGICunDEREF macro */
-		SvGETMAGIC(sv);
 		tryAMAGICunDEREF(to_cv);
-		if(SvROK(sv) && SvTYPE(SvRV(sv)) == SVt_PVCV){
-			return (CV*)SvRV(sv);
-		}
-		else{
-			Perl_croak(aTHX_ "Not %s reference", ref_names[T_CV]);
-		}
+	}
+
+	if(!(SvROK(sv) && SvTYPE(SvRV(sv)) == SVt_PVCV)){
+		my_croak(aTHX_ "Not %s reference", ref_names[T_CV]);
 	}
 	return (CV*)SvRV(sv);
 }
@@ -259,7 +243,7 @@ static SV*
 instance_of(pTHX_ SV* const x, SV* const klass){
 	dVAR;
 	if( !is_string(klass) ){
-		Perl_croak(aTHX_ "Invalid %s %s supplied", "class name", neat(klass));
+		my_croak(aTHX_ "Invalid %s %s supplied", "class name", neat(klass));
 	}
 
 	if( !(SvROK(x) && SvOBJECT(SvRV(x))) ){
@@ -354,11 +338,11 @@ my_mkopt(pTHX_ SV* const opt_list, SV* const moniker, const bool require_unique,
 
 	if(result_type == T_AV){
 		result_av = newAV();
-		ret = newRV_noinc((SV*)result_av);
+		ret = (SV*)result_av;
 	}
 	else{
 		result_hv = newHV();
-		ret = newRV_noinc((SV*)result_hv);
+		ret = (SV*)result_hv;
 	}
 
 	if(check_type(opt_list, T_HV)){
@@ -379,7 +363,7 @@ my_mkopt(pTHX_ SV* const opt_list, SV* const moniker, const bool require_unique,
 		}
 	}
 	else if(!SvOK(opt_list)){
-		return ret;
+		goto end;
 	}
 	else{
 		opt_av = deref_av(opt_list);
@@ -397,6 +381,9 @@ my_mkopt(pTHX_ SV* const opt_list, SV* const moniker, const bool require_unique,
 		}
 		else if(check_type(must_be, T_AV)){
 			vav = deref_av(must_be);
+		}
+		else if(!is_string(must_be)){
+			my_croak(aTHX_ "Validation failed: you must supply %s reference, not %s", "a class name, ARRAY or HASH", neat(must_be));
 		}
 	}
 
@@ -481,7 +468,9 @@ my_mkopt(pTHX_ SV* const opt_list, SV* const moniker, const bool require_unique,
 			hv_store_ent(result_hv, name, newSVsv(value), 0U);
 		}
 	}
-	return ret;
+
+	end:
+	return newRV_noinc(ret);
 }
 
 static void
@@ -489,6 +478,7 @@ initialize_my_cxt(pTHX_ my_cxt_t* const cxt){
 	cxt->universal_isa = CvGV(get_cv("UNIVERSAL::isa", GV_ADD));
 	SvREFCNT_inc_simple_void_NN(cxt->universal_isa);
 
+	cxt->croak = NULL;
 }
 
 
@@ -590,7 +580,7 @@ CODE:
 		XSRETURN(1);
 	}
 	else{ /* invocant() */
-		if(result){ /* XXX: do{ package ::Foo; ::Foo->something; } causes an error */
+		if(result){ /* XXX: do{ package ::Foo; ::Foo->something; } causes an fatal error */
 			dXSTARG;
 			sv_setsv(TARG, x); /* copy the pv and flags */
 			sv_setpv(TARG, canon_pkg(SvPV_nolen_const(x)));
@@ -671,24 +661,19 @@ CODE:
 	gv = (GV*)*hv_fetch(stash, name, namelen, TRUE);
 	if(SvTYPE(gv) != SVt_PVGV) gv_init(gv, stash, name, namelen, GV_ADDMULTI);
 	SvSetMagicSV((SV*)gv, code); /* *foo = \&bar */
-	if(CvANON(code_cv) && strEQ(GvNAME(CvGV(code_cv)), "__ANON__")){
-//		SvREFCNT_dec(CvGV(code_cv));
+	if(strEQ(GvNAME(CvGV(code_cv)), "__ANON__")){ /* check anonymousity by name, not by CvANON flag */
 		CvGV(code_cv) = gv;
-//		SvREFCNT_inc_simple_void_NN(gv);
 		CvANON_off(code_cv);
 	}
 
 void
 get_code_info(code)
-	SV* code
+	CV* code
 PREINIT:
 	GV* gv;
 	const char* stash_name;
 PPCODE:
-	if(!(SvROK(code) && SvTYPE(SvRV(code)) == SVt_PVCV))
-		Perl_croak(aTHX_ "Invalid %s %s supplied",
-			"CODE reference", neat(code));
-	gv = CvGV((CV*)SvRV(code));
+	gv = CvGV(code);
 	if(gv){
 		stash_name = HvNAME(GvSTASH(gv));
 		assert(stash_name);

@@ -3,8 +3,17 @@
 use strict;
 use Benchmark qw(:all);
 
-use Data::Util qw(:all), @ARGV;
-use Scalar::Util qw(blessed);
+use FindBin qw($Bin);
+use lib $Bin;
+use Common;
+
+use Data::Util qw(:all);
+use Params::Util qw(_INSTANCE); # 0.35 provides a XS implementation
+
+signeture
+	'Data::Util'   => \&is_instance,
+	'Params::Util' => \&_INSTANCE,
+;
 
 BEGIN{
 	package Base;
@@ -31,8 +40,6 @@ BEGIN{
 	}
 }
 
-print "Perl $] on $^O\n";
-
 foreach my $x (Foo->new, Foo::X::X::X->new, Unrelated->new, undef, {}){
 	print 'For ', neat($x), "\n";
 
@@ -44,9 +51,9 @@ foreach my $x (Foo->new, Foo::X::X::X->new, Unrelated->new, undef, {}){
 				$i++ if ref($x) && eval{ $x->isa('Foo') };
 			}
 		},
-		'scalar_util' => sub{
+		'_INSTANCE' => sub{
 			for(1 .. 10){
-				$i++ if blessed($x) && $x->isa('Foo');
+				$i++ if _INSTANCE($x, 'Foo');
 			}
 		},
 		'is_instance()' => sub{

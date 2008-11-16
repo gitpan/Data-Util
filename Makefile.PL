@@ -34,7 +34,6 @@ else{
 		XS => {},
 		C  => [],
 	);
-	requires 'Data::OptList' => 0.103;
 }
 
 WriteMakefile(
