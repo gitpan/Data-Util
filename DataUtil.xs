@@ -107,6 +107,7 @@ has_amagic_converter(pTHX_ SV* const sv, const my_ref_t t){
 		o = to_gv_amg;
 		break;
 	default:
+		/* not reached */
 		return FALSE;
 	}
 
@@ -149,6 +150,7 @@ my_check_type(pTHX_ SV* const sv, const my_ref_t t){
 #define deref_av(sv) my_deref_av(aTHX_ sv)
 #define deref_hv(sv) my_deref_hv(aTHX_ sv)
 #define deref_cv(sv) my_deref_cv(aTHX_ sv)
+#define deref_gv(sv) my_deref_gv(aTHX_ sv)
 
 static AV*
 my_deref_av(pTHX_ SV* sv){
@@ -186,7 +188,20 @@ my_deref_cv(pTHX_ SV* sv){
 	}
 	return (CV*)SvRV(sv);
 }
+#if 0
+static GV*
+my_deref_gv(pTHX_ SV* sv){
+	if(has_amagic_converter(aTHX_ sv, T_GV)){
+		SV* const* sp = &sv; /* used in tryAMAGICunDEREF macro */
+		tryAMAGICunDEREF(to_gv);
+	}
 
+	if(!(SvROK(sv) && SvTYPE(SvRV(sv)) == SVt_PVGV)){
+		my_croak(aTHX_ "Not %s reference", ref_names[T_GV]);
+	}
+	return (GV*)SvRV(sv);
+}
+#endif
 
 #define canon_pkg(x)  my_canon_pkg(aTHX_ x)
 static inline const char*
@@ -383,7 +398,7 @@ my_mkopt(pTHX_ SV* const opt_list, SV* const moniker, const bool require_unique,
 			vav = deref_av(must_be);
 		}
 		else if(!is_string(must_be)){
-			my_croak(aTHX_ "Validation failed: you must supply %s reference, not %s", "a class name, ARRAY or HASH", neat(must_be));
+			my_croak(aTHX_ "Validation failed: you must supply %s reference, not %s", "a type name, or ARRAY or HASH", neat(must_be));
 		}
 	}
 
@@ -621,16 +636,15 @@ neat(expr)
 	SV* expr
 
 void
-install_subroutine(into, as, code)
+install_subroutine(into, ...)
 	SV* into
-	SV* as
-	SV* code
 PREINIT:
 	CV* code_cv        = NULL;
 	const char* name   = NULL;
 	STRLEN   namelen   = 0;
 	GV* gv;
 	HV* stash = NULL;
+	int i;
 CODE:
 	SvGETMAGIC(into);
 	if(is_string(into)){
@@ -640,31 +654,91 @@ CODE:
 		my_croak(aTHX_ "Invalid %s %s supplied",
 			"package name", neat(into));
 	}
-	SvGETMAGIC(as);
-	if(is_string(as)){
-		name    = SvPV_const(as, namelen);
+	if((items % 2) == 0){ /* ((items-1) % 2) != 0 */
+		my_croak(aTHX_ "Odd number of arguments for %s", GvNAME(CvGV(cv)));
 	}
-	else{
-		my_croak(aTHX_ "Invalid %s %s supplied", "subroutine name", neat(as));
-	}
-	SvGETMAGIC(code);
-	if(check_type(code, T_CV)){
-		code_cv = deref_cv(code);
-		if(SvTYPE(SvRV(code)) != SVt_PVCV){
-			code = newRV_inc((SV*)code_cv);
-			sv_2mortal(code);
+	for(i = 1; i < items; i += 2){
+		SV* as   = ST(i);
+		SV* code = ST(i+1);
+		SvGETMAGIC(as);
+		if(is_string(as)){
+			name    = SvPV_const(as, namelen);
+		}
+		else{
+			my_croak(aTHX_ "Invalid %s %s supplied", "subroutine name", neat(as));
+		}
+		SvGETMAGIC(code);
+		if(check_type(code, T_CV)){
+			code_cv = deref_cv(code);
+			if(SvTYPE(SvRV(code)) != SVt_PVCV){
+				code = newRV_inc((SV*)code_cv);
+				sv_2mortal(code);
+			}
+		}
+		else{
+			my_croak(aTHX_ "Invalid %s %s supplied", "CODE reference", neat(code));
+		}
+		gv = (GV*)*hv_fetch(stash, name, namelen, TRUE);
+		if(SvTYPE(gv) != SVt_PVGV) gv_init(gv, stash, name, namelen, GV_ADDMULTI);
+		SvSetMagicSV((SV*)gv, code); /* *foo = \&bar */
+		if(strEQ(GvNAME(CvGV(code_cv)), "__ANON__")){ /* check anonymousity by name, not by CvANON flag */
+			CvGV(code_cv) = gv;
+			CvANON_off(code_cv);
 		}
 	}
+
+void
+uninstall_subroutine(package, ...)
+	SV* package
+PREINIT:
+	HV* stash        = NULL;
+	STRLEN namelen   = 0;
+	const char* name = NULL;
+	GV** gvp;
+	CV*  cv;
+	int i;
+CODE:
+	SvGETMAGIC(package);
+	if(is_string(package)){
+		stash = gv_stashsv(package, FALSE);
+	}
 	else{
-		my_croak(aTHX_ "Invalid %s %s supplied", "CODE reference", neat(code));
+		my_croak(aTHX_ "Invalid %s %s supplied",
+			"package name", neat(package));
 	}
-	gv = (GV*)*hv_fetch(stash, name, namelen, TRUE);
-	if(SvTYPE(gv) != SVt_PVGV) gv_init(gv, stash, name, namelen, GV_ADDMULTI);
-	SvSetMagicSV((SV*)gv, code); /* *foo = \&bar */
-	if(strEQ(GvNAME(CvGV(code_cv)), "__ANON__")){ /* check anonymousity by name, not by CvANON flag */
-		CvGV(code_cv) = gv;
-		CvANON_off(code_cv);
+	if(!stash) XSRETURN_EMPTY;
+
+	for(i = 1; i < items; i++){
+		SV* subr = ST(i);
+		SvGETMAGIC(subr);
+		if(is_string(subr)){
+			name    = SvPV_const(subr, namelen);
+		}
+		else{
+			my_croak(aTHX_ "Invalid %s %s supplied", "subroutine name", neat(subr));
+		}
+		gvp = (GV**)hv_fetch(stash, name, namelen, FALSE);
+		if(!gvp) continue;
+		SvGETMAGIC((SV*)*gvp);
+		if(SvROK((SV*)*gvp)){
+			if(ckWARN(WARN_MISC)){
+				Perl_warner(aTHX_ packWARN(WARN_MISC), "Constant subroutine %s uninstalled", name);
+			}
+			hv_delete(stash, name, namelen, G_DISCARD);
+			continue;
+		}
+		if(SvTYPE(*gvp) != SVt_PVGV){
+			continue;
+		}
+		if((cv = GvCVu(*gvp))){
+			if(cv_const_sv(cv) && ckWARN(WARN_MISC)){
+				Perl_warner(aTHX_ packWARN(WARN_MISC), "Constant subroutine %s uninstalled", name);
+			}
+			SvREFCNT_dec(cv);
+			GvCV(*gvp) = NULL;
+		}
 	}
+	mro_method_changed_in(stash);
 
 void
 get_code_info(code)
@@ -677,9 +751,17 @@ PPCODE:
 	if(gv){
 		stash_name = HvNAME(GvSTASH(gv));
 		assert(stash_name);
-		EXTEND(SP, 2);
-		mPUSHp(stash_name, strlen(stash_name));
-		mPUSHp(GvNAME(gv), GvNAMELEN(gv));
+
+		if(GIMME_V == G_ARRAY){
+			EXTEND(SP, 2);
+			mPUSHp(stash_name, strlen(stash_name));
+			mPUSHp(GvNAME(gv), GvNAMELEN(gv));
+		}
+		else{
+			SV* sv = newSVpvf("%s::%*s", stash_name, (int)GvNAMELEN(gv), GvNAME(gv));
+			sv_2mortal(sv);
+			XPUSHs(sv);
+		}
 	}
 
 #define UNDEF &PL_sv_undef

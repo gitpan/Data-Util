@@ -1,5 +1,10 @@
 Revision history for Data-Util
 
+0.21 Mon Nov 17 13:15:52 2008
+	- allow install_subroutine() to accept multiple pairs of name and code
+	- add uninstall_subroutine()
+	- change get_code_info() to return full qualified names in scalar context
+
 0.20 Sun Nov 16 13:04:56 2008
 	- add more tests
 	- fix some bugs

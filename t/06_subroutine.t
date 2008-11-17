@@ -1,15 +1,15 @@
 #!perl -w
 
 use strict;
-use Test::More tests => 25;
+use Test::More tests =>31;
 use Test::Exception;
 
-use Data::Util qw(get_code_info);
+use Data::Util qw(:all);
 
 use constant PP_ONLY => $INC{'Data/Util/PurePerl.pm'};
 
 sub get_subname{
-	return join '::', get_code_info(@_);
+	return scalar get_code_info(@_);
 }
 
 sub foo{
@@ -44,9 +44,13 @@ sub bar{
 }
 
 is_deeply get_subname(\&foo), 'main::foo', 'get_code_info()';
+is_deeply [get_code_info(\&foo)], [qw(main foo)];
+
 is_deeply get_subname(\&Foo::baz), 'Foo::baz', 'get_code_info()';
+is_deeply [get_code_info(\&Foo::baz)], [qw(Foo baz)];
 
 is_deeply get_subname(\&undefined_subr), 'main::undefined_subr';
+is_deeply [get_code_info(\&undefined_subr)], [qw(main undefined_subr)];
 
 no warnings 'redefine';
 
@@ -119,12 +123,12 @@ throws_ok{
 } qr/CODE reference/;
 
 throws_ok{
-	Foo->install_subroutine();
-} qr/^Usage/;
+	install_subroutine();
+} qr/^Usage: /;
 
 throws_ok{
-	Foo->install_subroutine("foo");
-} qr/^Usage/;
+	Foo->install_subroutine('foo');
+} qr/^Odd number of arguments/;
 
 throws_ok{
 	Data::Util::install_subroutine(undef, foo => \&foo);
@@ -140,3 +144,11 @@ throws_ok{
 throws_ok{
 	Foo->install_subroutine([], sub{});
 } qr/subroutine name/;
+
+# multiple installation
+
+install_subroutine(__PACKAGE__, f1 => sub{ 1 }, f2 => sub{ 2 }, f3 => sub{ 3 });
+is f1(), 1, 'multiple installation(1)';
+is f2(), 2, 'multiple installation(2)';
+is f3(), 3, 'multiple installation(3)';;
+

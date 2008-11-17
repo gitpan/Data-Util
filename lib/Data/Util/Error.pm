@@ -5,13 +5,11 @@ use warnings;
 
 sub import{
 	my $class = shift;
-	if(@_){
-		$class->fail_handler(scalar(caller) => @_);
-	}
+	$class->fail_handler(scalar(caller) => @_) if @_;
 }
 
 my %fail_handler;
-sub fail_handler{
+sub fail_handler :method{
 	shift; # this class
 	my $pkg = shift;
 	my $h = $fail_handler{$pkg};
@@ -24,9 +22,8 @@ sub fail_handler{
 }
 
 sub croak{
-	if($] < 5.010_000){
-		require MRO::Compat;
-	}
+	require MRO::Compat if $] < 5.010_000;
+	require Carp;
 
 	my $caller_pkg;
 	my $i = 0;
@@ -44,7 +41,6 @@ sub croak{
 		}
 	}
 
-	require Carp;
 	local $Carp::CarpLevel = $Carp::CarpLevel + $i;
 	die $fail_handler ? &{$fail_handler} : &Carp::longmess;
 }
@@ -53,7 +49,7 @@ __END__
 
 =head1 NAME
 
-Data::Util::Error - Deals with package-specific errors in Data::Util
+Data::Util::Error - Deals with package-specific error handlers in Data::Util
 
 =head1 SYNOPSIS
 

@@ -1,7 +1,7 @@
 #!perl -w
 
 use strict;
-use Test::More tests => 46;
+use Test::More tests => 47;
 use Test::Exception;
 
 use Data::Util qw(:all);
@@ -114,7 +114,7 @@ throws_ok{
 	mkopt [foo => []], "test", 0, 'HASH';
 } qr/ARRAY-ref values are not valid.* in test opt list/;
 throws_ok{
-	mkopt [foo => []], "test", 0, [qw(SCALAR CODE HASH)];
+	mkopt [foo => []], "test", 0, [qw(SCALAR CODE HASH GLOB)];
 } qr/ARRAY-ref values are not valid.* in test opt list/;
 throws_ok{
 	mkopt [foo => []], "test", 0, 'Bar';
@@ -127,6 +127,12 @@ throws_ok{
 	mkopt [foo => Foo->new], "test", 0, ['CODE', 'Bar'];
 } qr/Foo-ref values are not valid.* in test opt list/;
 
+
+# bad uses
+
+dies_ok{
+	mkopt [], 'test', 0, anon_scalar();
+};
 
 dies_ok{
 	mkopt anon_scalar();

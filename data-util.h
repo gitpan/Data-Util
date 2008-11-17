@@ -20,6 +20,10 @@
 #define SvRXOK(sv) ((bool)(SvROK(sv) && (SvTYPE(SvRV(sv)) == SVt_PVMG) && mg_find(SvRV(sv), PERL_MAGIC_qr)))
 #endif
 
+#ifndef mro_method_changed_in
+#define mro_method_changed_in(x) (void)(PL_sub_generation++)
+#endif
+
 #define is_string(x) (SvOK(x) && !SvROK(x))
 
 #define neat(x) du_neat(aTHX_ x)

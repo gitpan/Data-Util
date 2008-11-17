@@ -7,13 +7,14 @@ Data::Util::JA - データとデータ型のためのユーティリティ集
 
 =head1 VERSION
 
-This document describes Data::Util version 0.20
+This document describes Data::Util version 0.21
 
 =head1 SYNOPSIS
 
 	use Data::Util qw(:validate);
 
 	sub foo{
+		# they will die if invalid values are supplied
 		my $sref = scalar_ref(shift);
 		my $aref = array_ref(shift);
 		my $href = hash_ref(shift);
@@ -38,24 +39,29 @@ This document describes Data::Util version 0.20
 		# ...
 	}
 
-	# to generate an anonymous scalar reference
-	use Data::Util qw(anon_scalar)
+	# miscelaneous
+	use Data::Util qw(:all);
 
 	my $ref_to_undef = anon_scalar();
 	$x = anon_scalar($x); # OK
 
-	# miscelaneous
-	use Data::Util qw(get_stash install_subroutine get_code_info neat);
-
 	my $stash = get_stash('Foo');
-	install_subroutine('Foo', hello => sub{ "Hello, world!\n" });
+
+	install_subroutine('Foo',
+		hello  => sub{ "Hello!\n" },
+		goodby => sub{ "Goodby!\n" },
+	);
+
+	print Foo::hello(); # Hello!
+
 	my($pkg, $name) = get_code_info(\&Foo::hello); # => ('Foo', 'hello')
-	print Foo::hello(); # Hello, world!
+	my $fqn         = get_code_info(\&Foo::hello); # => 'Foo::bar'
+
+	uninstall_subroutine('Foo', qw(hello goodby));
 
 	print neat("Hello!\n"); # => "Hello!\n"
 	print neat(3.14);       # => 3.14
 	print neat(undef);      # => undef
-
 
 =head1 DESCRIPTION
 
@@ -192,7 +198,7 @@ C<< do{ no strict 'refs'; \%{$package.'::'} } >>というコードに似てい�
 I<package>が存在しなければそのスタッシュは生成せずC<undef>を返します。
 なお，I<package>が未定義値またはリファレンスのときもC<undef>を返します。
 
-=item install_subroutine(package, name => subr)
+=item install_subroutine(package, name => subr [, ...])
 
 サブルーチンI<subr>をI<package>にI<name>としてインストールします。
 
@@ -212,10 +218,22 @@ I<subr>がコードリファレンスでないときも致命的エラーとな�
 
 なお，Pure Perl版のコードでは匿名サブルーチンの配置は行いません。
 
+=item uninstall_subroutine(package, names ...)
+
+サブルーチンI<name>をパッケージI<package>から削除します。
+
+C<< undef &subr >>がC<&subr>を未定義にして型グロブのスロットを
+そのままにするのに対して，C<uninstall_subroutine>は型グロブのコードスロットを
+空にします。
+
+これはC<Sub::Delete::delete_sub()>に似ていますが，複数のサブルーチンを一度に
+削除できます。
+
 =item get_code_info(subr)
 
 コードリファレンスI<subr>のパッケージと名前のペアを返します。
-これはC<Sub::Identify::get_code_info()>と同じ機能です。
+これはC<Sub::Identify::get_code_info()>とほぼ同じ機能です。
+ただし，スカラーコンテキストでは完全修飾名を返します。
 
 =item mkopt(input, moniker, require_unique, must_be)
 
@@ -246,13 +264,17 @@ Please report any bugs or feature requests to the author.
 
 =head1 SEE ALSO
 
+L<Params::Util>.
+
 L<Scalar::Util>.
 
-L<Params::Util>.
+L<Sub::Install>.
 
 L<Sub::Identify>.
 
-L<Sub::Install>.
+L<Sub::Delete>.
+
+L<Data::OptList>.
 
 =head1 AUTHOR
 

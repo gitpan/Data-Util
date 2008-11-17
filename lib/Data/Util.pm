@@ -2,18 +2,19 @@ package Data::Util;
 
 use 5.008_001;
 use strict;
-use warnings;
+#use warnings;
 
-our $VERSION = '0.20';
+our $VERSION = '0.21';
 
 use Exporter qw(import);
 
+local($!, $@);
 our $TESTING_PERL_ONLY or eval{
 	require XSLoader;
 	XSLoader::load(__PACKAGE__, $VERSION);
 };
 
-eval q{require Data::Util::PurePerl} or die $@ # not to create "Data::Util::PurePerl" namespace
+require q{Data/Util/PurePerl.pm} # not to create "Data::Util::PurePerl" namespace
 	unless defined &instance;
 
 our @EXPORT_OK = qw(
@@ -27,6 +28,7 @@ our @EXPORT_OK = qw(
 
 	get_stash
 	install_subroutine
+	uninstall_subroutine
 	get_code_info
 
 	mkopt
@@ -56,7 +58,7 @@ Data::Util - A selection of utilities for data and data types
 
 =head1 VERSION
 
-This document describes Data::Util version 0.20
+This document describes Data::Util version 0.21
 
 =head1 SYNOPSIS
 
@@ -88,19 +90,25 @@ This document describes Data::Util version 0.20
 		# ...
 	}
 
-	# to generate an anonymous scalar reference
-	use Data::Util qw(anon_scalar)
+	# miscelaneous
+	use Data::Util qw(:all);
 
 	my $ref_to_undef = anon_scalar();
 	$x = anon_scalar($x); # OK
 
-	# miscelaneous
-	use Data::Util qw(get_stash install_subroutine get_code_info neat);
-
 	my $stash = get_stash('Foo');
-	install_subroutine('Foo', hello => sub{ "Hello, world!\n" });
+
+	install_subroutine('Foo',
+		hello  => sub{ "Hello!\n" },
+		goodby => sub{ "Goodby!\n" },
+	);
+
+	print Foo::hello(); # Hello!
+
 	my($pkg, $name) = get_code_info(\&Foo::hello); # => ('Foo', 'hello')
-	print Foo::hello(); # Hello, world!
+	my $fqn         = get_code_info(\&Foo::hello); # => 'Foo::bar'
+
+	uninstall_subroutine('Foo', qw(hello goodby));
 
 	print neat("Hello!\n"); # => "Hello!\n"
 	print neat(3.14);       # => 3.14
@@ -249,13 +257,13 @@ if the stash exists.
 It is similar to C<< do{ no strict 'refs'; \%{$package.'::'} } >>,
 but does B<not> create the stash if I<package> does not exist.
 
-=item install_subroutine(package, name => subr)
+=item install_subroutine(package, name => subr [, ...])
 
 Installs I<subr> into I<package> as I<name>.
 
 It is similar to
 C<< do{ no strict 'refs'; *{$package.'::'.$name} = \&subr; } >>.
-In addtion, if I<subr> is an anonymous subroutine, it is relocated into
+In addition, if I<subr> is an anonymous subroutine, it is relocated into
 I<package> as a named subroutine I<&package::name>.
 
 To re-install I<subr>, use C<< no warnings 'redefine' >> directive:
@@ -263,25 +271,43 @@ To re-install I<subr>, use C<< no warnings 'redefine' >> directive:
 	no warnings 'redefine';
 	install_subroutine($package, $name => $subr);
 
+=item uninstall_subroutine(package, names...)
+
+Uninstalls I<names> from I<package>.
+
+It is similar to C<Sub::Delete::delete_sub()>, but uninstall multiple
+subroutines at a time.
+
 =item get_code_info(subr)
 
 Returns a pair of elements, the package name and the subroutine name of I<subr>.
 
-This is the same function as C<Sub::Identify::get_code_info()>.
+It is similar to C<Sub::Identify::get_code_info()>, but it returns the full
+qualified name in scalar context.
 
 =item mkopt(input, moniker, require_unique, must_be)
 
 Produces an array of an array reference from I<input>.
 
-This is similar C<Data::OptList::mkopt()>. In addition to it,
+It is similar to C<Data::OptList::mkopt()>. In addition to it,
 I<must_be> can be a HASH reference with C<< name => type >> pairs.
+
+For example:
+
+	my $optlist = mkopt(['foo', bar => [42]], $moniker, $uniq, { bar => 'ARRAY' });
+	# $optlist == [[foo => undef], [bar => [42]]
 
 =item mkopt_hash(input, moniker, must_be)
 
 Produces a hash reference from I<input>.
 
-This is similar to C<Data::OptList::mkopt_hash()>. In addition to it,
+It is similar to C<Data::OptList::mkopt_hash()>. In addition to it,
 I<must_be> can be a HASH reference with C<< name => tyupe >> pairs.
+
+For example:
+
+	my $optlist = mkopt(['foo', bar => [42]], $moniker, { bar => 'ARRAY' });
+	# $optlist == {foo => undef, bar => [42]}
 
 =back
 
@@ -301,7 +327,11 @@ L<Params::Util>.
 
 L<Scalar::Util>.
 
+L<Sub::Install>.
+
 L<Sub::Identify>.
+
+L<Sub::Delete>.
 
 L<Data::OptList>.
 

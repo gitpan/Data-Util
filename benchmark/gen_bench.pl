@@ -8,7 +8,7 @@ use FindBin qw($Bin);
 use lib $Bin;
 use Common;
 
-signeture 'Data::Util' => \&anon_calar;
+signeture 'Data::Util' => \&anon_scalar;
 
 cmpthese timethese -1 => {
 	anon_scalar => sub{

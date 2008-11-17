@@ -46,6 +46,7 @@ t/10_neat.t
 t/11_fail_handler.t
 t/12_in_attr_handler.t
 t/13_optlist.t
+t/14_uninst_subr.t
 t/pp01_refs.t
 t/pp02_inst.t
 t/pp03_gen.t
@@ -58,6 +59,7 @@ t/pp10_neat.t
 t/pp11_fail_handler.t
 t/pp12_in_attr_handler.t
 t/pp13_optlist.t
+t/pp14_uninst_subr.t
 typemap
 xt/01_pod.t
 xt/02_pod-coverage.t

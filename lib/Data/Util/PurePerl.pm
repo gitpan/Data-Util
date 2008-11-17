@@ -9,9 +9,10 @@ package
 use strict;
 use warnings;
 
+#use warnings::unused;
+
 use Scalar::Util ();
 use overload ();
-
 
 sub _croak{
 	require Data::Util::Error;
@@ -137,23 +138,75 @@ sub anon_scalar{
 }
 
 sub install_subroutine{
-	my($into, $as, $code) = @_;
+	_croak('Usage: install_subroutine(package, name => code, ...)') unless @_;
 
-	_croak('Usage: Data::Util::install_subroutine(into, as, code)')
-		if @_ != 3;
-
+	my $into = shift;
 	_is_string($into)  or _fail('a package name', neat($into));
-	_is_string($as)    or _fail('a subroutine name', neat($as));
-	is_code_ref($code) or _fail('a CODE reference', neat($code));
 
-	my $slot = do{ no strict 'refs'; \*{ $into . '::' . $as } };
-
-	if(defined &{$slot}){
-		warnings::warnif(redefine => "subroutine $as redefined");
+	if((@_ % 2) != 0){
+		_croak('Odd number of arguments for install_subroutine');
 	}
 
-	no warnings 'redefine';
-	*{$slot} = \&{$code};
+	while(my($as, $code) = splice @_, 0, 2){
+		_is_string($as)    or _fail('a subroutine name', neat($as));
+		is_code_ref($code) or _fail('a CODE reference', neat($code));
+
+		my $slot = do{ no strict 'refs'; \*{ $into . '::' . $as } };
+
+		if(defined &{$slot}){
+			warnings::warnif(redefine => "Subroutine $as redefined");
+		}
+
+		no warnings 'redefine';
+		*{$slot} = \&{$code};
+	}
+	return;
+}
+sub uninstall_subroutine {
+	_croak('Usage: uninstall_subroutine(package, name, ...)') unless @_;
+
+	my $package = shift;
+
+	_is_string($package) or _fail('a package name', neat($package));
+	my $stash = get_stash($package) or return 0;
+
+	foreach my $name(@_){
+		_is_string($name)    or _fail('a subrotine name', neat($name));
+
+		my $glob = $stash->{$name};
+
+		if(ref $glob){
+			warnings::warnif(misc => "Constant subroutine $name uninstalled");
+			delete $stash->{$name};
+			next;
+		}
+
+		if(ref(\$glob) ne 'GLOB'){
+			next;
+		}
+
+		my $code = *{$glob}{CODE};
+		if(not defined $code){
+			next;
+		}
+
+		my $proto = prototype($code);
+		if(defined($proto) && $proto eq '' && get_code_info($code) eq 'constant::__ANON__'){
+			warnings::warnif(misc => "Constant subroutine $name uninstalled");
+		}
+
+		local *tmp;
+
+		# copy all the slot except for CODE
+		foreach my $slot( qw(SCALAR ARRAY HASH IO FORMAT) ){
+			*tmp = *{$glob}{$slot} if defined *{$glob}{$slot};
+		}
+
+		*{$glob} = *tmp; # copy GvGP
+		$stash->{$name} = $glob;
+	}
+
+	return;
 }
 
 sub get_code_info{
@@ -162,9 +215,9 @@ sub get_code_info{
 	is_code_ref($code) or _fail('a CODE reference', neat($code));
 
 	require B;
-	my $cv = B::svref_2object(\&{$code});
-	return unless $cv->GV->isa('B::GV');
-	return ($cv->GV->STASH->NAME, $cv->GV->NAME);
+	my $gv = B::svref_2object(\&{$code})->GV;
+	return unless $gv->isa('B::GV');
+	return wantarray ? ($gv->STASH->NAME, $gv->NAME) : join('::', $gv->STASH->NAME, $gv->NAME);
 }
 
 sub neat{
@@ -217,6 +270,10 @@ sub mkopt{
 
 	my $vh = is_hash_ref($must_be);
 	my $validator = $must_be;
+
+	if(defined($validator) && (!$vh && !is_array_ref($validator) && !_is_string($validator))){
+		_fail('a type name, or ARRAY or HASH reference', neat($validator));
+	}
 
 	for(my $i = 0; $i < @$opt_list; $i++) {
 		my $name = $opt_list->[$i];
