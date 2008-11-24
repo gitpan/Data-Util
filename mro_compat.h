@@ -14,10 +14,13 @@
 #endif
 
 #ifndef mro_get_linear_isa
-#define mro_get_linear_isa(stash) my_mro_get_linear_isa_dfs(aTHX_ stash)
-
-AV* my_mro_get_linear_isa_dfs(pTHX_ HV* stash);
-
 #define USE_MRO_COMPAT
 
-#endif
+#define mro_get_linear_isa(stash) my_mro_get_linear_isa_dfs(aTHX_ stash)
+AV* my_mro_get_linear_isa_dfs(pTHX_ HV* const stash);
+
+#define mro_method_changed_in(statsh) my_mro_method_changed_in(aTHX_ stash)
+void my_mro_method_changed_in(pTHX_ HV* const stash);
+
+#endif /* !mro_get_linear_isa */
+

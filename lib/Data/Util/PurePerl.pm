@@ -19,7 +19,8 @@ sub _croak{
 	goto &Data::Util::Error::croak;
 }
 sub _fail{
-	_croak(sprintf 'Validation failed: you must supply %s, not %s', @_);
+	my($name, $value) = @_;
+	_croak(sprintf 'Validation failed: you must supply %s, not %s', $name, neat($value));
 }
 
 sub _overloaded{
@@ -51,7 +52,7 @@ sub is_regex_ref{
 }
 sub is_instance{
 	my($obj, $class) = @_;
-	_fail('a class name', neat $class)
+	_fail('a class name', $class)
 		unless _is_string($class);
 
 	return Scalar::Util::blessed($obj) && $obj->isa($class);
@@ -69,37 +70,37 @@ sub is_invocant{
 
 sub scalar_ref{
 	return ref($_[0]) eq 'SCALAR' || ref($_[0]) eq 'REF' || _overloaded($_[0], '${}')
-		? $_[0] : _fail('a SCALAR reference', neat($_[0]));
+		? $_[0] : _fail('a SCALAR reference', $_[0]);
 
 }
 sub array_ref{
 	return ref($_[0]) eq 'ARRAY' || _overloaded($_[0], '@{}')
-		? $_[0] : _fail('an ARRAY reference', neat($_[0]));
+		? $_[0] : _fail('an ARRAY reference', $_[0]);
 }
 sub hash_ref{
 	return ref($_[0]) eq 'HASH' || _overloaded($_[0], '%{}')
-		? $_[0] : _fail('a HASH reference', neat($_[0]));
+		? $_[0] : _fail('a HASH reference', $_[0]);
 }
 sub code_ref{
 	return ref($_[0]) eq 'CODE' || _overloaded($_[0], '&{}')
-		? $_[0] : _fail('a CODE reference', neat($_[0]));
+		? $_[0] : _fail('a CODE reference', $_[0]);
 }
 sub glob_ref{
 	return ref($_[0]) eq 'GLOB' || _overloaded($_[0], '*{}')
-		? $_[0] : _fail('a GLOB reference', neat($_[0]));
+		? $_[0] : _fail('a GLOB reference', $_[0]);
 }
 sub regex_ref{
 	return ref($_[0]) eq 'Regexp'
-		? $_[0] : _fail('a regular expression reference', neat($_[0]));
+		? $_[0] : _fail('a regular expression reference', $_[0]);
 }
 sub instance{
 	my($obj, $class) = @_;
 
-	_fail('a class name', neat($class))
+	_fail('a class name', $class)
 		unless _is_string($class);
 
 	return Scalar::Util::blessed($obj) && $obj->isa($class)
-		? $obj : _fail("an instance of $class", neat($obj));
+		? $obj : _fail("an instance of $class", $obj);
 }
 
 sub invocant{
@@ -116,7 +117,7 @@ sub invocant{
 			return $x eq '' ? 'main' : $x;
 		}
 	}
-	_fail('an invocant', neat($x));
+	_fail('an invocant', $x);
 }
 
 sub get_stash{
@@ -137,19 +138,44 @@ sub anon_scalar{
 	return \$s;  # not \$_[0]
 }
 
+sub neat{
+	my($s) = @_;
+
+	if(ref $s){
+		if(ref($s) eq 'CODE'){
+			return sprintf '\\&%s(0x%x)', scalar(get_code_info($s)), Scalar::Util::refaddr($s);
+		}
+		elsif(ref($s) eq 'Regexp'){
+			return qq{qr{$s}};
+		}
+		return overload::StrVal($s);
+	}
+	elsif(defined $s){
+		return $s   if Scalar::Util::looks_like_number($s);
+		return "$s" if is_glob_ref(\$s);
+
+		require B;
+		return B::perlstring($s);
+	}
+	else{
+		return 'undef';
+	}
+}
+
+
 sub install_subroutine{
 	_croak('Usage: install_subroutine(package, name => code, ...)') unless @_;
 
 	my $into = shift;
-	_is_string($into)  or _fail('a package name', neat($into));
+	_is_string($into)  or _fail('a package name', $into);
 
 	if((@_ % 2) != 0){
 		_croak('Odd number of arguments for install_subroutine');
 	}
 
 	while(my($as, $code) = splice @_, 0, 2){
-		_is_string($as)    or _fail('a subroutine name', neat($as));
-		is_code_ref($code) or _fail('a CODE reference', neat($code));
+		_is_string($as)    or _fail('a subroutine name', $as);
+		is_code_ref($code) or _fail('a CODE reference', $code);
 
 		my $slot = do{ no strict 'refs'; \*{ $into . '::' . $as } };
 
@@ -167,11 +193,11 @@ sub uninstall_subroutine {
 
 	my $package = shift;
 
-	_is_string($package) or _fail('a package name', neat($package));
+	_is_string($package) or _fail('a package name', $package);
 	my $stash = get_stash($package) or return 0;
 
 	foreach my $name(@_){
-		_is_string($name)    or _fail('a subrotine name', neat($name));
+		_is_string($name)    or _fail('a subrotine name', $name);
 
 		my $glob = $stash->{$name};
 
@@ -212,7 +238,7 @@ sub uninstall_subroutine {
 sub get_code_info{
 	my($code) = @_;
 
-	is_code_ref($code) or _fail('a CODE reference', neat($code));
+	is_code_ref($code) or _fail('a CODE reference', $code);
 
 	require B;
 	my $gv = B::svref_2object(\&{$code})->GV;
@@ -220,23 +246,172 @@ sub get_code_info{
 	return wantarray ? ($gv->STASH->NAME, $gv->NAME) : join('::', $gv->STASH->NAME, $gv->NAME);
 }
 
-sub neat{
-	my($s) = @_;
+sub curry{
+	my $is_method = !is_code_ref($_[0]);
 
-	if(ref $s){
-		return ref($s) eq 'Regexp' ? "qr{$s}" : overload::StrVal($s);
+	my $proc;
+	$proc = shift if !$is_method;
+
+	my $args = \@_;
+
+	my @tmpl;
+
+	my $i = 0;
+	my $maxp = -1;
+	foreach my $arg(@_){
+		if(is_scalar_ref($arg) && Scalar::Util::looks_like_number($$arg)){
+			push @tmpl, sprintf '$_[%d]', $$arg;
+			$maxp = $$arg if $maxp < $$arg;
+		}
+		elsif(defined($arg) && (\$arg) == \*_){
+			push @tmpl, '@_[$maxp .. $#_]';
+		}
+		else{
+			push @tmpl, sprintf '$args->[%d]', $i;
+		}
+		$i++;
 	}
-	elsif(defined $s){
-		return $s   if Scalar::Util::looks_like_number($s);
-		return "$s" if is_glob_ref(\$s);
 
-		require B;
-		return B::perlstring($s);
+	$maxp++;
+
+	my($pkg, $file, $line, $hints, $bitmask) = (caller 0 )[0, 1, 2, 8, 9];
+	my $body = sprintf <<'END_CXT', $pkg, $line, $file;
+BEGIN{ $^H = $hints; ${^WARNING_BITS} = $bitmask; }
+package %s;
+#line %s %s
+END_CXT
+
+	if($is_method){
+		my $selfp = shift @tmpl;
+		$proc     = shift @tmpl;
+		$body .= sprintf q{ sub {
+			my $self   = %s;
+			my $method = %s;
+			$self->$method(%s);
+		} }, $selfp, defined($proc) ? $proc : 'undef', join(q{,}, @tmpl);
 	}
 	else{
-		return 'undef';
+		$body .= sprintf q{ sub { $proc->(%s) } }, join q{,}, @tmpl;
+	}
+	eval $body or die $@;
+}
+
+BEGIN{
+	my %modifiers;
+
+	my $initializer;
+	$initializer = sub{
+		require Hash::Util::FieldHash::Compat;
+		Hash::Util::FieldHash::Compat::fieldhash(\%modifiers);
+		undef $initializer;
+	};
+
+	sub wrap_subroutine{
+		my $code   = code_ref  shift;
+
+		if((@_ % 2) != 0){
+			_croak('Odd number of arguments for wrap_subroutine()');
+		}
+		my %args   = @_;
+
+		my(@before, @around, @after);
+
+		@before = map{ code_ref $_ } @{array_ref $args{before}} if exists $args{before};
+		@around = map{ code_ref $_ } @{array_ref $args{around}} if exists $args{around};
+		@after  = map{ code_ref $_ } @{array_ref $args{after}} if exists $args{after};
+
+		my %props = (
+			before      => \@before,
+			around      => \@around,
+			after       => \@after,
+			original    => $code,
+			current_ref => \$code,
+		);
+
+		#$code = curry($_, (my $tmp = $code), *_) for @around;
+		for my $ar(@around){
+			my $base = $code;
+			$code = sub{ $ar->($base, @_) };
+		}
+		my($pkg, $file, $line, $hints, $bitmask) = (caller 0)[0, 1, 2, 8, 9];
+
+		my $context = sprintf <<'END_CXT', $pkg, $line, $file;
+BEGIN{ $^H = $hints; ${^WARNING_BITS} = $bitmask; }
+package %s;
+#line %s %s
+END_CXT
+
+		my $wrapped = eval $context . q{sub{
+			$_->(@_) for @before;
+			if(wantarray){ # list context
+				my @ret = $code->(@_);
+				$_->(@_) for @after;
+				return @ret;
+			}
+			elsif(defined wantarray){ # scalar context
+				my $ret = $code->(@_);
+				$_->(@_) for @after;
+				return $ret;
+			}
+			else{ # void context
+				$code->(@_);
+				$_->(@_) for @after;
+				return;
+			}
+		}} or die $@;
+
+		$initializer->() if $initializer;
+
+		$modifiers{$wrapped} = \%props;
+		return $wrapped;
+	}
+
+	my %valid_modifier_command = map{ $_ => undef } qw(before around after original);
+
+	sub subroutine_modifier{
+		my $wrapped = code_ref shift;
+
+		my $props_ref = $modifiers{$wrapped};
+
+		unless(@_){ # subroutine_modifier($subr) - only checking
+			return defined $props_ref;
+		}
+		unless($props_ref){ # otherwise, it should be wrapped subroutines
+			_fail('a wrapped subroutine', $wrapped);
+		}
+
+		my($name, @subs) = @_;
+		(_is_string($name) && exists $valid_modifier_command{$name}) or _fail('a modifier command', $name);
+
+
+		if($name eq 'original'){
+			if(@subs){
+				_croak('Cannot reset the original subroutine');
+			}
+			return $props_ref->{$name};
+		}
+		else{ # before, around, after
+			my $property = $props_ref->{$name};
+			if(@subs){
+				push @{$property}, map{ code_ref $_ } @subs;
+
+				if($name eq 'around'){
+					my $current_ref = $props_ref->{current_ref};
+					for my $ar(@subs){
+						my $base = $$current_ref;
+						$$current_ref = sub{ $ar->($base, @_) };
+					}
+				}
+			}
+			return @{$property} if defined wantarray;
+		}
+
+		return;
 	}
 }
+#
+# mkopt() and mkopt_hash() are originated from Data::OptList
+#
 
 my %test_for = (
 	CODE   => \&is_code_ref,
@@ -250,7 +425,7 @@ my %test_for = (
 sub __is_a {
 	my ($got, $expected) = @_;
 
-	return grep{ __is_a($got, $_) } @{$expected} if ref $expected;
+	return scalar grep{ __is_a($got, $_) } @{$expected} if ref $expected;
 
 	my $t = $test_for{$expected};
 	return defined($t) ? $t->($got) : is_instance($got, $expected);
@@ -272,7 +447,7 @@ sub mkopt{
 	my $validator = $must_be;
 
 	if(defined($validator) && (!$vh && !is_array_ref($validator) && !_is_string($validator))){
-		_fail('a type name, or ARRAY or HASH reference', neat($validator));
+		_fail('a type name, or ARRAY or HASH reference', $validator);
 	}
 
 	for(my $i = 0; $i < @$opt_list; $i++) {

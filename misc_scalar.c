@@ -85,6 +85,10 @@ du_neat_cat(pTHX_ SV* const dsv, SV* x, const int level){
 
 			sv_catpvs(dsv, "}");
 		}
+		else if(SvTYPE(x) == SVt_PVCV){
+			GV* const gv = CvGV((CV*)x);
+			Perl_sv_catpvf(aTHX_ dsv, "\\&%s::%s(0x%p)", HvNAME(GvSTASH(gv)), GvNAME(gv), x);
+		}
 		else{
 			Perl_sv_catpvf(aTHX_ dsv, "%s(0x%p)", sv_reftype(x, FALSE), x);
 		}

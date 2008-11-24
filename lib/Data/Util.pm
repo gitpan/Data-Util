@@ -4,18 +4,21 @@ use 5.008_001;
 use strict;
 #use warnings;
 
-our $VERSION = '0.21';
+our $VERSION = '0.29_01';
 
 use Exporter qw(import);
 
-local($!, $@);
-our $TESTING_PERL_ONLY or eval{
-	require XSLoader;
-	XSLoader::load(__PACKAGE__, $VERSION);
-};
+{
+	local($!, $@);
+	our $TESTING_PERL_ONLY or eval{
+		require XSLoader;
+		XSLoader::load(__PACKAGE__, $VERSION);
+	};
+}
 
 require q{Data/Util/PurePerl.pm} # not to create "Data::Util::PurePerl" namespace
 	unless defined &instance;
+
 
 our @EXPORT_OK = qw(
 	is_scalar_ref is_array_ref is_hash_ref is_code_ref is_glob_ref is_regex_ref
@@ -27,9 +30,14 @@ our @EXPORT_OK = qw(
 	anon_scalar neat
 
 	get_stash
+
 	install_subroutine
 	uninstall_subroutine
 	get_code_info
+
+	curry
+	wrap_subroutine
+	subroutine_modifier
 
 	mkopt
 	mkopt_hash
@@ -58,7 +66,7 @@ Data::Util - A selection of utilities for data and data types
 
 =head1 VERSION
 
-This document describes Data::Util version 0.21
+This document describes Data::Util version 0.29_01
 
 =head1 SYNOPSIS
 
@@ -116,7 +124,11 @@ This document describes Data::Util version 0.21
 
 =head1 DESCRIPTION
 
-This module provides utility functions for data and data types.
+This module provides utility functions for data and data types,
+including functions for subroutines.
+
+The implementation of this module is both Pure Perl and XS, so if you have a C
+compiler, all the functions the module provides are really faster.
 
 =head1 INTERFACE
 
@@ -212,7 +224,7 @@ For an instance of I<class>.
 For an invocant, i.e. a blessed reference or existent package name.
 
 If I<value> is a valid class name and the class exists, then it returns
-the canonical class name, which is logically cleanuped. That is, it does
+the canonical class name, which is logically cleaned up. That is, it does
 C<< $value =~ s/^::(?:main::)*//; >> before returns it.
 
 NOTE:
@@ -285,6 +297,45 @@ Returns a pair of elements, the package name and the subroutine name of I<subr>.
 It is similar to C<Sub::Identify::get_code_info()>, but it returns the full
 qualified name in scalar context.
 
+=item curry(subr, args and/or placeholders)
+
+Makes I<subr> curried and returns the curried subroutine.
+
+This is also considered as lightweight closures.
+
+See also L<Data::Util::Curry>.
+
+=item wrap_subroutine(subr, ...)
+
+Wraps I<subr> with subroutine modifiers and returns the wrapped subroutine.
+This is also considered as lightweight closures.
+
+I<subr> must be a code reference or callable object.
+
+Optional arguments:
+C<< before => [subroutine(s)] >> called before I<subr>.
+C<< around => [subroutine(s)] >> called around I<subr>.
+C<< after  => [subroutine(s)] >> called after  I<subr>.
+
+This is considered as a constructor of wrapped subroutines, and
+C<subroutine_modifier()> property accessors.
+
+=item subroutine_modifier(wrapped)
+
+Returns whether I<wrapped> is a wrapped subroutine.
+
+=item subroutine_modifier(wrapped, property)
+
+Gets I<property> from I<wrapped>.
+
+Valid properties are: C<before>, C<around>, C<after> and C<original>.
+
+=item subroutine_modifier(wrapped, modifier => [subroutine(s)])
+
+Adds subroutine I<modifier> to I<wrapped>.
+
+Valid modifiers are: C<before>, C<around>, C<after>.
+
 =item mkopt(input, moniker, require_unique, must_be)
 
 Produces an array of an array reference from I<input>.
@@ -323,15 +374,21 @@ Please report any bugs or feature requests to the author.
 
 =head1 SEE ALSO
 
-L<Params::Util>.
-
 L<Scalar::Util>.
+
+L<overload>.
+
+L<Params::Util>.
 
 L<Sub::Install>.
 
 L<Sub::Identify>.
 
 L<Sub::Delete>.
+
+L<Sub::Curry>.
+
+L<Class::Method::Modifiers>.
 
 L<Data::OptList>.
 

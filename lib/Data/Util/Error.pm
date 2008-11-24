@@ -49,7 +49,7 @@ __END__
 
 =head1 NAME
 
-Data::Util::Error - Deals with package-specific error handlers in Data::Util
+Data::Util::Error - Deals with class-specific error handlers in Data::Util
 
 =head1 SYNOPSIS
 

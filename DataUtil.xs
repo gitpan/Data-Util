@@ -1,9 +1,13 @@
-/* Data-Util/Util.xs */
+/* Data-Util/DataUtil.xs */
 
 #include "data-util.h"
 
 
 #define MY_CXT_KEY "Data::Util::_guts" XS_VERSION
+
+
+#define string(sv, len, name) (SvGETMAGIC(sv), (is_string(sv) ? NOOP : my_fail(aTHX_ name, sv)), SvPV_const(sv, len))
+
 
 typedef struct{
 	GV* universal_isa;
@@ -12,6 +16,9 @@ typedef struct{
 } my_cxt_t;
 START_MY_CXT;
 
+/* null magic virtual table to identify magic functions */
+MGVTBL curried_vtbl;
+MGVTBL wrapped_vtbl;
 
 typedef enum{
 	T_NOT_REF,
@@ -28,22 +35,21 @@ typedef enum{
 
 static const char* const ref_names[] = {
 	NULL, /* NOT_REF */
-	"a SCALAR",
-	"an ARRAY",
-	"a HASH",
-	"a CODE",
-	"a GLOB",
+	"a SCALAR reference",
+	"an ARRAY reference",
+	"a HASH reference",
+	"a CODE reference",
+	"a GLOB reference",
 	NULL, /* IO */
-	"a FORMAT",
-	NULL, /* RE */
+	NULL, /* FM */
+	"a regular expression reference", /* RX */
 	NULL  /* OBJECT */
 };
-
-
 
 static void
 my_croak(pTHX_ const char* const fmt, ...)
 	__attribute__format__(__printf__, pTHX_1, pTHX_2);
+
 
 static void
 my_croak(pTHX_ const char* const fmt, ...){
@@ -78,9 +84,14 @@ my_croak(pTHX_ const char* const fmt, ...){
 	LEAVE;
 }
 
+static void
+my_fail(pTHX_ const char* const name, SV* value){
+	my_croak(aTHX_ "Validation failed: you must supply %s, not %s", name, neat(value));
+}
+
 
 static bool
-has_amagic_converter(pTHX_ SV* const sv, const my_ref_t t){
+my_has_amagic_converter(pTHX_ SV* const sv, const my_ref_t t){
 	const AMT* amt;
 	int o = 0;
 
@@ -126,7 +137,7 @@ my_check_type(pTHX_ SV* const sv, const my_ref_t t){
 			return SvRXOK(sv);
 		}
 		else{
-			return has_amagic_converter(aTHX_ sv, t);
+			return my_has_amagic_converter(aTHX_ sv, t);
 		}
 	}
 
@@ -146,64 +157,60 @@ my_check_type(pTHX_ SV* const sv, const my_ref_t t){
 	return T_SV == t;
 }
 
-
 #define deref_av(sv) my_deref_av(aTHX_ sv)
 #define deref_hv(sv) my_deref_hv(aTHX_ sv)
 #define deref_cv(sv) my_deref_cv(aTHX_ sv)
-#define deref_gv(sv) my_deref_gv(aTHX_ sv)
 
 static AV*
 my_deref_av(pTHX_ SV* sv){
-	if(has_amagic_converter(aTHX_ sv, T_AV)){
+	SvGETMAGIC(sv);
+	if(my_has_amagic_converter(aTHX_ sv, T_AV)){
 		SV* const* sp = &sv; /* used in tryAMAGICunDEREF macro */
 		tryAMAGICunDEREF(to_av);
 	}
 
 	if(!(SvROK(sv) && SvTYPE(SvRV(sv)) == SVt_PVAV)){
-		my_croak(aTHX_ "Not %s reference", ref_names[T_AV]);
+		my_fail(aTHX_ ref_names[T_AV], sv);
 	}
 	return (AV*)SvRV(sv);
 }
 static HV*
 my_deref_hv(pTHX_ SV* sv){
-	if(has_amagic_converter(aTHX_ sv, T_HV)){
+	SvGETMAGIC(sv);
+	if(my_has_amagic_converter(aTHX_ sv, T_HV)){
 		SV* const* sp = &sv; /* used in tryAMAGICunDEREF macro */
 		tryAMAGICunDEREF(to_hv);
 	}
 
 	if(!(SvROK(sv) && SvTYPE(SvRV(sv)) == SVt_PVHV)){
-		my_croak(aTHX_ "Not %s reference", ref_names[T_HV]);
+		my_fail(aTHX_ ref_names[T_HV], sv);
 	}
 	return (HV*)SvRV(sv);
 }
 static CV*
 my_deref_cv(pTHX_ SV* sv){
-	if(has_amagic_converter(aTHX_ sv, T_CV)){
+	SvGETMAGIC(sv);
+	if(my_has_amagic_converter(aTHX_ sv, T_CV)){
 		SV* const* sp = &sv; /* used in tryAMAGICunDEREF macro */
 		tryAMAGICunDEREF(to_cv);
 	}
 
 	if(!(SvROK(sv) && SvTYPE(SvRV(sv)) == SVt_PVCV)){
-		my_croak(aTHX_ "Not %s reference", ref_names[T_CV]);
+		my_fail(aTHX_ ref_names[T_CV], sv);
 	}
 	return (CV*)SvRV(sv);
 }
-#if 0
-static GV*
-my_deref_gv(pTHX_ SV* sv){
-	if(has_amagic_converter(aTHX_ sv, T_GV)){
-		SV* const* sp = &sv; /* used in tryAMAGICunDEREF macro */
-		tryAMAGICunDEREF(to_gv);
-	}
 
-	if(!(SvROK(sv) && SvTYPE(SvRV(sv)) == SVt_PVGV)){
-		my_croak(aTHX_ "Not %s reference", ref_names[T_GV]);
+#define validate(sv, t) my_validate_ref(aTHX_ sv, t)
+static SV*
+my_validate_ref(pTHX_ SV* const sv, my_ref_t const ref_type){
+	if(!check_type(sv, ref_type)){
+		my_fail(aTHX_ ref_names[ref_type], sv);
 	}
-	return (GV*)SvRV(sv);
+	return sv;
 }
-#endif
 
-#define canon_pkg(x)  my_canon_pkg(aTHX_ x)
+
 static inline const char*
 my_canon_pkg(pTHX_ const char* name){
 	/* ""  -> "main" */
@@ -225,12 +232,12 @@ my_canon_pkg(pTHX_ const char* name){
 	return name;
 }
 
-#define isa_lookup(x, y) my_isa_lookup(aTHX_ x, y)
+
 static int
 my_isa_lookup(pTHX_ HV* const stash, const char* klass_name){
-	const char* const stash_name = canon_pkg(HvNAME(stash));
+	const char* const stash_name = my_canon_pkg(aTHX_ HvNAME(stash));
 
-	klass_name = canon_pkg(klass_name);
+	klass_name = my_canon_pkg(aTHX_ klass_name);
 
 	if(strEQ(stash_name, klass_name)){
 		return TRUE;
@@ -244,7 +251,7 @@ my_isa_lookup(pTHX_ HV* const stash, const char* klass_name){
 		SV** const end = svp + AvFILLp(stash_linear_isa); /* start + 1 + last index */
 
 		while(svp != end){
-			if(strEQ(klass_name, canon_pkg(SvPVX(*svp)))){
+			if(strEQ(klass_name, my_canon_pkg(aTHX_ SvPVX(*svp)))){
 				return TRUE;
 			}
 			svp++;
@@ -255,10 +262,10 @@ my_isa_lookup(pTHX_ HV* const stash, const char* klass_name){
 
 /* returns &PL_sv_yes or &PL_sv_no */
 static SV*
-instance_of(pTHX_ SV* const x, SV* const klass){
+my_instance_of(pTHX_ SV* const x, SV* const klass){
 	dVAR;
 	if( !is_string(klass) ){
-		my_croak(aTHX_ "Invalid %s %s supplied", "class name", neat(klass));
+		my_fail(aTHX_ "a class name", klass);
 	}
 
 	if( !(SvROK(x) && SvOBJECT(SvRV(x))) ){
@@ -267,13 +274,15 @@ instance_of(pTHX_ SV* const x, SV* const klass){
 	else{
 		dMY_CXT;
 		HV* const stash = SvSTASH(SvRV(x));
-		GV* const isa   = gv_fetchmeth_autoload(stash, "isa", sizeof("isa")-1, 0 /* special zero, not flags */);
+		GV* const isa   = gv_fetchmeth_autoload(stash, "isa", sizeof("isa")-1, 0 /* special zero, not flags nor bool */);
 		SV* retval;
 
+		/* common cases */
 		if(isa == NULL || GvCV(isa) == GvCV(MY_CXT.universal_isa)){
-			return boolSV( isa_lookup(stash, SvPV_nolen_const(klass)) );
+			return boolSV( my_isa_lookup(aTHX_ stash, SvPV_nolen_const(klass)) );
 		}
 
+		/* special cases */
 		/* call their own isa() method */
 		{
 			dSP;
@@ -334,7 +343,7 @@ my_type_isa(pTHX_ SV* const sv, SV* const type){
 		}
 		break;
 	}
-	return instance_of(aTHX_ sv, type) == &PL_sv_yes;
+	return my_instance_of(aTHX_ sv, type) == &PL_sv_yes;
 }
 
 static SV*
@@ -398,18 +407,18 @@ my_mkopt(pTHX_ SV* const opt_list, SV* const moniker, const bool require_unique,
 			vav = deref_av(must_be);
 		}
 		else if(!is_string(must_be)){
-			my_croak(aTHX_ "Validation failed: you must supply %s reference, not %s", "a type name, or ARRAY or HASH", neat(must_be));
+			my_fail(aTHX_ "a type info", must_be);
 		}
 	}
 
 	len = av_len(opt_av) + 1;
 	for(i = 0; i < len; i++){
-		SV* name = *av_fetch(opt_av, i, TRUE);
+		SV* const name = *av_fetch(opt_av, i, TRUE);
 		SV* value;
 
 		if(require_unique){
-			HE* he = hv_fetch_ent(seen, name, TRUE, 0U);
-			SV* count = hv_iterval(seen, he);
+			HE* const he = hv_fetch_ent(seen, name, TRUE, 0U);
+			SV* const count = hv_iterval(seen, he);
 			if(SvTRUE(count)){
 				my_croak(aTHX_ "Multiple definitions provided for %"SVf" in %"SVf" opt list", name, moniker);
 			}
@@ -435,10 +444,10 @@ my_mkopt(pTHX_ SV* const opt_list, SV* const moniker, const bool require_unique,
 
 		if(with_validation && SvOK(value)){
 			if(vhv){
-				HE* he = hv_fetch_ent(vhv, name, FALSE, 0U);
+				HE* const he = hv_fetch_ent(vhv, name, FALSE, 0U);
 				vav = NULL;
 				if(he){
-					SV* sv = hv_iterval(vhv, he);
+					SV* const sv = hv_iterval(vhv, he);
 					if(check_type(sv, T_AV)){
 						vav = deref_av(sv);
 					}
@@ -466,7 +475,7 @@ my_mkopt(pTHX_ SV* const opt_list, SV* const moniker, const bool require_unique,
 			else{
 				if(!type_isa(value, must_be)){
 					validation_failed:
-					my_croak(aTHX_ "Validation failed: %s-ref values are not valid for %"SVf" in %"SVf" opt list",
+					my_croak(aTHX_ "%s-ref values are not valid for %"SVf" in %"SVf" opt list",
 						sv_reftype(SvRV(value), TRUE), name, moniker);
 				}
 			}
@@ -486,6 +495,39 @@ my_mkopt(pTHX_ SV* const opt_list, SV* const moniker, const bool require_unique,
 
 	end:
 	return newRV_noinc(ret);
+}
+
+/*
+	$code = curry($_, (my $tmp = $code), *_) for @around;
+*/
+static SV*
+my_build_around_code(pTHX_ SV* code_ref, AV* const around){
+	I32 const len = av_len(around) + 1;
+	I32 i;
+	for(i = 0; i < len; i++){
+		CV* current;
+		SV* const sv = validate(*av_fetch(around, i, TRUE), T_CV);
+		AV* const args         = newAV();
+		AV* const placeholders = newAV();
+
+		av_store(args, 0, newSVsv(sv)); /* base proc */
+		av_store(args, 1, code_ref);    /* first argument */
+		av_store(args, 2, &PL_sv_undef);/* placeholder */
+		SvREFCNT_inc_simple_void_NN(code_ref);
+
+		av_store(placeholders, 2, (SV*)PL_defgv); // *_
+		SvREFCNT_inc_simple_void_NN(PL_defgv);
+
+		current = newXS(NULL /* anonymous */, XS_Data__Util_curried, __FILE__);
+		sv_magicext((SV*)current, (SV*)args, PERL_MAGIC_ext, &curried_vtbl, (const char*)placeholders, HEf_SVKEY);
+
+		SvREFCNT_dec(args);         /* because: refcnt++ in sv_magicext() */
+		SvREFCNT_dec(placeholders); /* because: refcnt++ in sv_magicext() */
+
+		code_ref = newRV_noinc((SV*)current);
+		sv_2mortal(code_ref);
+	}
+	return code_ref;
 }
 
 static void
@@ -545,8 +587,7 @@ CODE:
 	if(check_type(x, (my_ref_t)ix)){
 		XSRETURN(1); /* return the first value */
 	}
-	my_croak(aTHX_ "Validation failed: you must supply %s reference, not %s,",
-		ref_names[ix], neat(x));
+	my_fail(aTHX_ ref_names[ix], x);
 
 void
 is_instance(x, klass)
@@ -555,7 +596,7 @@ is_instance(x, klass)
 CODE:
 	SvGETMAGIC(x);
 	SvGETMAGIC(klass);
-	ST(0) = instance_of(aTHX_ x, klass);
+	ST(0) = my_instance_of(aTHX_ x, klass);
 	XSRETURN(1);
 
 void
@@ -565,7 +606,7 @@ instance(x, klass)
 CODE:
 	SvGETMAGIC(x);
 	SvGETMAGIC(klass);
-	if( instance_of(aTHX_ x, klass) == &PL_sv_yes ){
+	if( my_instance_of(aTHX_ x, klass) == &PL_sv_yes ){
 		XSRETURN(1); /* return $_[0] */
 	}
 	my_croak(aTHX_ "Validation failed: you must supply an instance of %"SVf", not %s",
@@ -598,11 +639,11 @@ CODE:
 		if(result){ /* XXX: do{ package ::Foo; ::Foo->something; } causes an fatal error */
 			dXSTARG;
 			sv_setsv(TARG, x); /* copy the pv and flags */
-			sv_setpv(TARG, canon_pkg(SvPV_nolen_const(x)));
+			sv_setpv(TARG, my_canon_pkg(aTHX_ SvPV_nolen_const(x)));
 			ST(0) = TARG;
 			XSRETURN(1);
 		}
-		my_croak(aTHX_ "Validation failed: you must supply an invocant, not %s", neat(x));
+		my_fail(aTHX_ "an invocant", x);
 	}
 
 
@@ -639,9 +680,6 @@ void
 install_subroutine(into, ...)
 	SV* into
 PREINIT:
-	CV* code_cv        = NULL;
-	const char* name   = NULL;
-	STRLEN   namelen   = 0;
 	GV* gv;
 	HV* stash = NULL;
 	int i;
@@ -651,36 +689,28 @@ CODE:
 		stash = gv_stashsv(into, TRUE);
 	}
 	else{
-		my_croak(aTHX_ "Invalid %s %s supplied",
-			"package name", neat(into));
+		my_fail(aTHX_ "a package name", into);
 	}
-	if((items % 2) == 0){ /* ((items-1) % 2) != 0 */
+	if( ((items-1) % 2) != 0 ){
 		my_croak(aTHX_ "Odd number of arguments for %s", GvNAME(CvGV(cv)));
 	}
 	for(i = 1; i < items; i += 2){
 		SV* as   = ST(i);
 		SV* code = ST(i+1);
-		SvGETMAGIC(as);
-		if(is_string(as)){
-			name    = SvPV_const(as, namelen);
+		STRLEN namelen;
+		const char* const name = string(as, namelen, "a subroutine name");
+		CV* const code_cv = deref_cv(code);
+
+		if(SvTYPE(SvRV(code)) != SVt_PVCV){ /* overloaded object */
+			code = newRV_inc((SV*)code_cv);
+			sv_2mortal(code);
 		}
-		else{
-			my_croak(aTHX_ "Invalid %s %s supplied", "subroutine name", neat(as));
-		}
-		SvGETMAGIC(code);
-		if(check_type(code, T_CV)){
-			code_cv = deref_cv(code);
-			if(SvTYPE(SvRV(code)) != SVt_PVCV){
-				code = newRV_inc((SV*)code_cv);
-				sv_2mortal(code);
-			}
-		}
-		else{
-			my_croak(aTHX_ "Invalid %s %s supplied", "CODE reference", neat(code));
-		}
+
 		gv = (GV*)*hv_fetch(stash, name, namelen, TRUE);
 		if(SvTYPE(gv) != SVt_PVGV) gv_init(gv, stash, name, namelen, GV_ADDMULTI);
+
 		SvSetMagicSV((SV*)gv, code); /* *foo = \&bar */
+
 		if(strEQ(GvNAME(CvGV(code_cv)), "__ANON__")){ /* check anonymousity by name, not by CvANON flag */
 			CvGV(code_cv) = gv;
 			CvANON_off(code_cv);
@@ -692,10 +722,6 @@ uninstall_subroutine(package, ...)
 	SV* package
 PREINIT:
 	HV* stash        = NULL;
-	STRLEN namelen   = 0;
-	const char* name = NULL;
-	GV** gvp;
-	CV*  cv;
 	int i;
 CODE:
 	SvGETMAGIC(package);
@@ -703,23 +729,18 @@ CODE:
 		stash = gv_stashsv(package, FALSE);
 	}
 	else{
-		my_croak(aTHX_ "Invalid %s %s supplied",
-			"package name", neat(package));
+		my_fail(aTHX_ "a package name", package);
 	}
 	if(!stash) XSRETURN_EMPTY;
 
 	for(i = 1; i < items; i++){
-		SV* subr = ST(i);
-		SvGETMAGIC(subr);
-		if(is_string(subr)){
-			name    = SvPV_const(subr, namelen);
-		}
-		else{
-			my_croak(aTHX_ "Invalid %s %s supplied", "subroutine name", neat(subr));
-		}
-		gvp = (GV**)hv_fetch(stash, name, namelen, FALSE);
+		STRLEN namelen;
+		const char* const name = string(ST(i), namelen, "a subroutine name");
+		GV** const gvp = (GV**)hv_fetch(stash, name, namelen, FALSE);
+		CV* code;
+
 		if(!gvp) continue;
-		SvGETMAGIC((SV*)*gvp);
+
 		if(SvROK((SV*)*gvp)){
 			if(ckWARN(WARN_MISC)){
 				Perl_warner(aTHX_ packWARN(WARN_MISC), "Constant subroutine %s uninstalled", name);
@@ -730,11 +751,11 @@ CODE:
 		if(SvTYPE(*gvp) != SVt_PVGV){
 			continue;
 		}
-		if((cv = GvCVu(*gvp))){
-			if(cv_const_sv(cv) && ckWARN(WARN_MISC)){
+		if((code = GvCVu(*gvp))){
+			if(cv_const_sv(code) && ckWARN(WARN_MISC)){
 				Perl_warner(aTHX_ packWARN(WARN_MISC), "Constant subroutine %s uninstalled", name);
 			}
-			SvREFCNT_dec(cv);
+			SvREFCNT_dec(code);
 			GvCV(*gvp) = NULL;
 		}
 	}
@@ -745,11 +766,10 @@ get_code_info(code)
 	CV* code
 PREINIT:
 	GV* gv;
-	const char* stash_name;
 PPCODE:
 	gv = CvGV(code);
 	if(gv){
-		stash_name = HvNAME(GvSTASH(gv));
+		const char* stash_name = HvNAME(GvSTASH(gv));
 		assert(stash_name);
 
 		if(GIMME_V == G_ARRAY){
@@ -758,11 +778,196 @@ PPCODE:
 			mPUSHp(GvNAME(gv), GvNAMELEN(gv));
 		}
 		else{
-			SV* sv = newSVpvf("%s::%*s", stash_name, (int)GvNAMELEN(gv), GvNAME(gv));
-			sv_2mortal(sv);
-			XPUSHs(sv);
+			SV* const sv = newSVpvf("%s::%*s", stash_name, (int)GvNAMELEN(gv), GvNAME(gv));
+			mXPUSHs(sv);
 		}
 	}
+
+
+SV*
+curry(code, ...)
+	SV* code
+PREINIT:
+	CV* curried;
+	AV* args;
+	AV* placeholders;
+	I32 is_method;
+	I32 i;
+CODE:
+	SvGETMAGIC(code);
+	is_method = check_type(code, T_CV) ? 0 : G_METHOD;
+
+	args         = newAV();
+	placeholders = newAV();
+
+	av_extend(args,         items-1);
+	av_extend(placeholders, items-1);
+
+	for(i = 0; i < items; i++){
+		SV* const sv = ST(i);
+		SvGETMAGIC(sv);
+
+		if(SvROK(sv) && SvIOK(SvRV(sv)) && !SvOBJECT(SvRV(sv))){ // \0, \1, ...
+			av_store(args, i, &PL_sv_undef);
+			av_store(placeholders, i, newSVsv(SvRV(sv)));
+		}
+		else if(sv == (SV*)PL_defgv){ // *_ (always *main::_)
+			av_store(args, i, &PL_sv_undef);
+			av_store(placeholders, i, sv);
+			SvREFCNT_inc_simple_void_NN(sv);
+		}
+		else{
+			av_store(args, i, sv); /* not copy */
+			av_store(placeholders, i, &PL_sv_undef);
+			SvREFCNT_inc_simple_void_NN(sv);
+		}
+	}
+	curried = newXS(NULL /* anonymous */, XS_Data__Util_curried, __FILE__);
+	CvXSUBANY(curried).any_i32 = is_method;
+
+	sv_magicext((SV*)curried, (SV*)args, PERL_MAGIC_ext, &curried_vtbl, (const char*)placeholders, HEf_SVKEY);
+	SvREFCNT_dec((SV*)args);         /* refcnt++ in sv_magicext() */
+	SvREFCNT_dec((SV*)placeholders); /* refcnt++ in sv_magicext() */
+
+	RETVAL = newRV_noinc((SV*)curried);
+OUTPUT:
+	RETVAL
+
+SV*
+wrap_subroutine(code, ...)
+	CV* code
+PREINIT:
+	SV* original;
+	CV* wrapped;
+	SV* current;
+	AV* before;
+	AV* around;
+	AV* after;
+	AV* modifiers; /* (before, around, after, original, current) */
+	I32 i;
+CODE:
+	if( ((items - 1) % 2) != 0 ){
+		my_croak(aTHX_ "Odd number of arguments for %s", GvNAME(CvGV(cv)));
+	}
+
+	before = newAV(); sv_2mortal((SV*)before);
+	around = newAV(); sv_2mortal((SV*)around);
+	after  = newAV(); sv_2mortal((SV*)after );
+
+	for(i = 1; i < items; i += 2){ /* modifier_type => [subroutine(s)] */
+		STRLEN mt_len;
+		const char* const modifier_type = string(ST(i), mt_len, "a modifer type");
+		AV*         const          subs = deref_av(ST(i+1));
+		I32         const      subs_len = av_len(subs) + 1;
+		AV* av = NULL;
+		I32 j;
+
+		if(strEQ(modifier_type, "before")){
+			av = before;
+		}
+		else if(strEQ(modifier_type, "around")){
+			av = around;
+		}
+		else if(strEQ(modifier_type, "after")){
+			av = after;
+		}
+		else{
+			my_croak(aTHX_ "Invalid modifier type %s", neat(ST(i)));
+		}
+
+		av_extend(av, AvFILLp(av) + subs_len - 1);
+		for(j = 0; j < subs_len; j++){
+			SV* code_ref = validate(*av_fetch(subs, j, TRUE), T_CV);
+			av_push(av, newSVsv(code_ref)); /* must be copy */
+		}
+	}
+
+	modifiers = newAV();
+	sv_2mortal((SV*)modifiers);
+
+	original = newRV_inc((SV*)code);
+	sv_2mortal(original);
+
+	current = my_build_around_code(aTHX_ original, around);
+
+	av_store(modifiers, M_CURRENT,  SvREFCNT_inc_simple_NN(current));
+	av_store(modifiers, M_ORIGINAL, SvREFCNT_inc_simple_NN(original));
+
+	av_store(modifiers, M_BEFORE, SvREFCNT_inc_simple_NN(before));
+	av_store(modifiers, M_AROUND, SvREFCNT_inc_simple_NN(around));
+	av_store(modifiers, M_AFTER,  SvREFCNT_inc_simple_NN(after));
+
+	wrapped = newXS(NULL /* anonymous */, XS_Data__Util_wrapped, __FILE__);
+	sv_magicext((SV*)wrapped, (SV*)modifiers, PERL_MAGIC_ext, &wrapped_vtbl, NULL, 0);
+
+	RETVAL = newRV_noinc((SV*)wrapped);
+OUTPUT:
+	RETVAL
+
+
+void
+subroutine_modifier(code, ...)
+	CV* code
+PREINIT:
+	/* Usage:
+		subroutine_modifier(code)                 # check
+		subroutine_modifier(code, property)       # get
+		subroutine_modifier(code, property, subs) # set
+	*/
+	MAGIC* mg;
+	AV* modifiers; /* (before, around, after, original, current) */
+	SV* command;
+	const char* command_pv;
+PPCODE:
+	mg = mg_find((SV*)code, PERL_MAGIC_ext);
+	modifiers = (AV*)(mg && mg->mg_virtual == &wrapped_vtbl ? mg->mg_obj : NULL);
+	if(items == 1){ /* check only */
+		ST(0) = boolSV(modifiers);
+		XSRETURN(1);
+	}
+	if(!modifiers){
+		my_fail(aTHX_ "a wrapped subroutine", ST(0) /* ref to code */);
+	}
+
+	command = ST(1);
+	SvGETMAGIC(command);
+	if(!is_string(command)) goto invalid_command;
+
+	command_pv = SvPV_nolen_const(command);
+	if(strEQ(command_pv, "original")){
+		if(items != 2){
+			my_croak(aTHX_ "Cannot reset the original subroutine");
+		}
+		XPUSHs(*av_fetch(modifiers, M_ORIGINAL, FALSE));
+	}
+	else if(strEQ(command_pv, "before") || strEQ(command_pv, "around") || strEQ(command_pv, "after")){
+		I32 idx =
+			  strEQ(command_pv, "before") ? M_BEFORE
+			: strEQ(command_pv, "around") ? M_AROUND
+			:                               M_AFTER;
+		AV* property = (AV*)*av_fetch(modifiers, idx, FALSE);
+		if(items != 2){ /* add */
+			I32 i;
+			for(i = 2; i < items; i++){
+				av_push(property, newSVsv(validate(ST(i), T_CV)));
+			}
+
+			if(idx == M_AROUND){
+				AV* const around = (AV*)sv_2mortal((SV*)av_make(items-2, &ST(2)));
+				SV* const current = my_build_around_code(aTHX_
+					*av_fetch(modifiers, M_CURRENT, FALSE),
+					around);
+				av_store(modifiers, M_CURRENT, current);
+				SvREFCNT_inc_simple_void_NN(current);
+			}
+		}
+		XPUSHav(property, 0, av_len(property)+1);
+	}
+	else{
+		invalid_command:
+		my_fail(aTHX_ "a modifier command", command);
+	}
+
 
 #define UNDEF &PL_sv_undef
 

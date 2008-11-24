@@ -3,11 +3,13 @@
 use warnings 'FATAL';
 
 use strict;
-use Test::More tests => 12;
+use Test::More tests => 14;
 
 use Tie::Scalar;
 use Tie::Array;
 use Tie::Hash;
+
+sub foo{}
 
 {
 	package Foo;
@@ -22,8 +24,9 @@ is neat(3.14), 3.14;
 is neat("foo\n"), q{"foo\n"};
 is neat(undef), 'undef';
 is neat(*ok), '*main::ok';
-like neat(qr{foo}), qr/qr{.*foo.*}/;
-
+ok neat({'!foo' => '!bar'});
+unlike neat({foo => 'bar', baz => 'bax'}), qr/undef/;
+like neat(\&foo), qr/^\\&main::foo\(.*\)$/;
 like neat(Foo->new(42)), qr/^Foo=HASH\(.+\)$/, 'for an overloaded object';
 
 tie my $s, 'Tie::StdScalar', "foo\n";

@@ -9,10 +9,13 @@ all_from 'lib/Data/Util.pm';
 
 requires 'Exporter'    => 5.57;
 requires 'XSLoader'    => 0.06;
-requires 'MRO::Compat' => 0.09 if $] < 5.010_000;
+requires 'MRO::Compat' => 0.09           if $] < 5.010_000;
+requires 'Hash::Util::FieldHash::Compat';
 
 test_requires 'Test::More'      => 0.62;
 test_requires 'Test::Exception' => 0.27;
+
+test_requires 'Scope::Guard';
 
 author_tests 'xt';
 

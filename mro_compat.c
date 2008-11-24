@@ -10,7 +10,7 @@
 #define ISA_CACHE "::LINEAR_ISA_DFS::CACHE::"
 
 static void
-my_dfs(pTHX_ const char* const name, HV* stash, AV* retval, int level){
+my_dfs(pTHX_ const char* const name, HV* const stash, AV* const retval, int const level){
 	GV** const gvp = (GV**)hv_fetchs(stash, "ISA", FALSE);
 	AV* isa_av;
 
@@ -27,7 +27,7 @@ my_dfs(pTHX_ const char* const name, HV* stash, AV* retval, int level){
 			SV* const base_sv    = AvARRAY(isa_av)[i];
 			HV* const base_stash = gv_stashsv(base_sv, FALSE);
 			const char* const base_name = base_stash ? HvNAME(base_stash) : SvPV_nolen_const(base_sv);
-			SV* sv = newSVpv(base_name, 0);
+			SV* const sv = newSVpv(base_name, 0);
 
 			if(SvUTF8(base_sv)){
 				SvUTF8_on(sv);
@@ -41,7 +41,7 @@ my_dfs(pTHX_ const char* const name, HV* stash, AV* retval, int level){
 }
 
 AV*
-my_mro_get_linear_isa_dfs(pTHX_ HV* stash){
+my_mro_get_linear_isa_dfs(pTHX_ HV* const stash){
 	GV* const gv = *(GV**)hv_fetchs(stash, ISA_CACHE, TRUE);
 	AV* retval;
 	SV* subgen;
@@ -66,5 +66,10 @@ my_mro_get_linear_isa_dfs(pTHX_ HV* stash){
 	return retval;
 }
 
+void
+my_mro_method_changed_in(pTHX_ HV* const stash){
+	PERL_UNUSED_ARG(stash);
+	PL_sub_generation++;
+}
 
 #endif

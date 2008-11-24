@@ -1,7 +1,7 @@
 #!perl -w
 
 use strict;
-use Test::More tests => 20;
+use Test::More tests => 21;
 
 use Test::Exception;
 
@@ -44,13 +44,17 @@ ok !__PACKAGE__->can('f4');
 
 
 SKIP:{
-	skip 'requires Scope::Guard', 1 unless HAS_SCOPE_GUARD;
+	skip 'requires Scope::Guard', 2 unless HAS_SCOPE_GUARD;
 
-	my $s = Scope::Guard->new(sub{ pass 'closed values released' });
+	my $i = 1;
+	{
+		my $s = Scope::Guard->new(sub{ $i--; pass 'closure released' });
 
-	sub closure{ $s };
+		install_subroutine(__PACKAGE__, closure => sub{ $s });
+	}
 
 	uninstall_subroutine(__PACKAGE__, 'closure');
+	is $i, 0, 'closed values released';
 }
 
 our $BAX = 42;
