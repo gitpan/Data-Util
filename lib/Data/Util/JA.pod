@@ -7,7 +7,7 @@ Data::Util::JA - データとデータ型のためのユーティリティ集
 
 =head1 VERSION
 
-This document describes Data::Util version 0.29_01
+This document describes Data::Util version 0.29_02
 
 =head1 SYNOPSIS
 
@@ -73,6 +73,12 @@ This document describes Data::Util version 0.29_01
 偽であれば致命的エラーとなる機能を提供します。
 その他の関数群は，無名スカラーリファレンスの生成やシンボルテーブルの操作，
 コードリファレンスの操作などの機能を提供します。
+
+このモジュールの実装はXSとPure Perl両方提供しており，Cコンパイラのある
+環境ではXSバックエンドが，ない環境ではPure Perlバックエンドが使用されます。
+
+XSバックエンドは注意深く実装されているため非常に効率がよく，
+Pure Perlバックエンドより2倍から10倍程度高速に動作します。
 
 =head1 INTERFACE
 
@@ -231,15 +237,101 @@ C<< undef &subr >>がC<&subr>を未定義にして型グロブのコードスロ
 
 =item get_code_info(subr)
 
-コードリファレンスI<subr>のパッケージと名前のペアを返します。
+サブルーチンI<subr>のパッケージと名前のペアを返します。
 これはC<Sub::Identify::get_code_info()>とほぼ同じ機能です。
 ただし，スカラーコンテキストでは完全修飾名を返します。
 
 =item curry(subr, args and/or placeholders)
 
-=item wrap_subroutine(subr, ...)
+サブルーチンI<subr>のカリー化を行います。
+つまり特定の引数を固定したクロージャを生成します。
 
-=item subroutine_modifier(subr, ...)
+I<args and/or placeholders>には，固定する引数か，カリー化サブルーチンの引数に
+置き換えられるプレースホルダを渡します。プレースホルダには，添え字I<x>を参照
+するC<\x>と，C<\x>で参照した最大の添え字の以降の引数を参照するC<*_>があります。
+
+たとえば，以下のC<$closure>とC<$curried>は同じ意図で呼び出すことができます。
+
+	my $class = 'Foo';
+	$closure = sub{ is_instance($_[0], $class) };
+	$curried = curry \&is_instance, \0, $class;
+
+	$closure = sub{ install_subroutine($class, @_) };
+	$curried = curry \&install_subroutine, $class, *_;
+
+なお，C<*_>はC<\x>で参照しなかった引数ではないので注意してください。
+たとえば，C<< curry(\&subr, *_, \1)->(0, 1, 2, 3) >>というカリー化では，
+C<subr(2, 3, 1)>が呼び出されます。
+
+より詳しいサンプルコードがL<Data::Util::Curry>にあります。
+
+=item wrap_subroutine(subr, modifier_type => subroutines, ...)
+
+サブルーチンI<subr>をI<modifier_type>にしたがってI<subroutines>で修飾し，
+無名関数I<wrapped>として返します。
+
+I<modifier_type>にはC<before>, C<around>, C<after>があり，C<before>は
+I<subr>の呼び出し前に，C<after>はI<subr>の呼出し後に，I<wrapped>に与えられた
+引数で呼び出されます。C<before>とC<after>の戻り値は捨てられます。
+C<around>はI<subr>の入出力をフィルタリングするための修飾子です。
+
+その際，呼び出順は，C<before>とC<around>は後で定義されたものが先に呼び出され
+(last-defined-first-called)，C<after>は先に定義されたものが先に呼び出されます(first-defined-first-called)。この呼び出し順はC<subroutine_modifier()>でも同じ
+です。
+
+たとえば：
+
+	$wrapped = wrap_subroutine(\&foo, around => [sub{
+		my $next = shift;
+		do_something();
+		goto &{$next}; # continuation
+	}]);
+	$wrapped->();
+
+	$wrapped = wrap_subroutine(\&foo,
+		before => \@befores,
+		around => \@arounds,
+		after  => \@afters,
+	);
+	$wrapped->();
+
+XSによる実装では，サブルーチンを修飾したときのコストは非常に安くなっています。
+
+このディストリビューションに付属しているF<example/lib/MethodModifiers>
+(C<wrap_subroutine()>/C<subroutine_modifier()>のデモ)のベンチマーク
+F<benchmark/methext_bench.pl>によれば，メソッド修飾のコストは次のようになります：
+
+	with before modifier: 100% slower
+	with after modifier:  100% slower
+	with around modifier: 200% slower
+
+なお，C<SUPER::>疑似クラスによるメソッドの拡張は約500% slowerですから，
+メソッド修飾子による拡張の方が数倍高速です。
+
+各修飾子については，L<Class::MOP::Class/"Method Modifiers">に
+詳しい解説があります。
+
+=item subroutine_modifier(wrapped, modifier_type => subroutines, ...)
+
+C<wrap_subroutine()>で生成したI<wrapped>を操作します。
+
+引数をI<wrapped>のみ渡した場合は，そのI<wrapped>がC<wrap_subroutine()>で
+生成されたものかどうかを示すブール値を返します。
+
+	if(subroutine_modifier $wrapped){
+		# $wrappedは修飾子つきサブルーチン
+	}
+
+I<wrapped>とI<modifier_type>(C<before>, C<around>, C<after>およびC<original>)
+を渡すと，そのI<modifier_type>に応じた修飾関数
+（またはC<original>の場合，元の関数）を返します。
+
+	@befores = subroutine_modifier $wrapped, 'before';
+
+このほか，更に関数のリストを渡した場合には，I<wrapped>のI<modifier_type>に
+その関数を追加します。
+
+	subroutine_modifier $wrapped, before => @befores;
 
 =item mkopt(input, moniker, require_unique, must_be)
 
@@ -317,6 +409,8 @@ L<Sub::Identify>.
 L<Sub::Delete>.
 
 L<Sub::Curry>.
+
+L<Class::MOP>.
 
 L<Class::Method::Modifiers>.
 

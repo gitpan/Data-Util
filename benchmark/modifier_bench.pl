@@ -5,7 +5,7 @@ use Benchmark qw(:all);
 
 
 use FindBin qw($Bin);
-use lib $Bin;
+use lib $Bin, "$Bin/../example/lib";
 use Common;
 
 
@@ -21,12 +21,12 @@ my $i = 0;
 sub around{
 	my $next = shift;
 	$i++;
-	$next->(@_);
+	goto &{$next};
 }
 {
 	package DUMM;
 	use parent -norequire => qw(Base);
-	use Data::Util::MethodModifiers;
+	use MethodModifiers;
 
 	before f => sub{ $i++ };
 	around g => \&main::around;
@@ -57,7 +57,7 @@ signeture
 	'Class::Method::Modifiers' => \&Class::Method::Modifiers::around,
 ;
 
-print "Calling subroutine with before modifiers:\n";
+print "Calling methods with before modifiers:\n";
 cmpthese -1 => {
 	wrap => sub{
 		my $old = $i;
@@ -76,7 +76,7 @@ cmpthese -1 => {
 	}
 };
 
-print "\n", "Calling subroutine with around modifiers:\n";
+print "\n", "Calling methods with around modifiers:\n";
 cmpthese -1 => {
 	wrap => sub{
 		my $old = $i;
@@ -94,7 +94,7 @@ cmpthese -1 => {
 		$i == ($old+1) or die $i;
 	}
 };
-print "\n", "Calling subroutine with after modifiers:\n";
+print "\n", "Calling methods with after modifiers:\n";
 cmpthese -1 => {
 	wrap => sub{
 		my $old = $i;

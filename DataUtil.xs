@@ -2,12 +2,7 @@
 
 #include "data-util.h"
 
-
 #define MY_CXT_KEY "Data::Util::_guts" XS_VERSION
-
-
-#define string(sv, len, name) (SvGETMAGIC(sv), (is_string(sv) ? NOOP : my_fail(aTHX_ name, sv)), SvPV_const(sv, len))
-
 
 typedef struct{
 	GV* universal_isa;
@@ -50,7 +45,6 @@ static void
 my_croak(pTHX_ const char* const fmt, ...)
 	__attribute__format__(__printf__, pTHX_1, pTHX_2);
 
-
 static void
 my_croak(pTHX_ const char* const fmt, ...){
 	dMY_CXT;
@@ -89,7 +83,6 @@ my_fail(pTHX_ const char* const name, SV* value){
 	my_croak(aTHX_ "Validation failed: you must supply %s, not %s", name, neat(value));
 }
 
-
 static bool
 my_has_amagic_converter(pTHX_ SV* const sv, const my_ref_t t){
 	const AMT* amt;
@@ -122,7 +115,7 @@ my_has_amagic_converter(pTHX_ SV* const sv, const my_ref_t t){
 		return FALSE;
 	}
 
-	return !!amt->table[o];
+	return amt->table[o] ? TRUE : FALSE;
 }
 
 #define check_type(sv, t) my_check_type(aTHX_ sv, t)
@@ -147,9 +140,7 @@ my_check_type(pTHX_ SV* const sv, const my_ref_t t){
 	case SVt_PVHV: return T_HV == t;
 	case SVt_PVCV: return T_CV == t;
 	case SVt_PVGV: return T_GV == t;
-#if 0 /* IO is always SvOBJECT */
 	case SVt_PVIO: return T_IO == t;
-#endif
 	case SVt_PVFM: return T_FM == t;
 	default:       NOOP;
 	}
@@ -201,15 +192,22 @@ my_deref_cv(pTHX_ SV* sv){
 	return (CV*)SvRV(sv);
 }
 
-#define validate(sv, t) my_validate_ref(aTHX_ sv, t)
+#define validate(sv, t) my_validate(aTHX_ sv, t)
 static SV*
-my_validate_ref(pTHX_ SV* const sv, my_ref_t const ref_type){
+my_validate(pTHX_ SV* const sv, my_ref_t const ref_type){
+	SvGETMAGIC(sv);
 	if(!check_type(sv, ref_type)){
 		my_fail(aTHX_ ref_names[ref_type], sv);
 	}
 	return sv;
 }
 
+static SV*
+my_string(pTHX_ SV* const sv, const char* const name){
+	SvGETMAGIC(sv);
+	if(!is_string(sv)) my_fail(aTHX_ name, sv);
+	return sv;
+}
 
 static inline const char*
 my_canon_pkg(pTHX_ const char* name){
@@ -275,7 +273,6 @@ my_instance_of(pTHX_ SV* const x, SV* const klass){
 		dMY_CXT;
 		HV* const stash = SvSTASH(SvRV(x));
 		GV* const isa   = gv_fetchmeth_autoload(stash, "isa", sizeof("isa")-1, 0 /* special zero, not flags nor bool */);
-		SV* retval;
 
 		/* common cases */
 		if(isa == NULL || GvCV(isa) == GvCV(MY_CXT.universal_isa)){
@@ -285,6 +282,7 @@ my_instance_of(pTHX_ SV* const x, SV* const klass){
 		/* special cases */
 		/* call their own isa() method */
 		{
+			SV* retval;
 			dSP;
 			ENTER;
 			SAVETMPS;
@@ -306,9 +304,9 @@ my_instance_of(pTHX_ SV* const x, SV* const klass){
 
 			FREETMPS;
 			LEAVE;
-		}
 
-		return retval;
+			return retval;
+		}
 	}
 }
 
@@ -370,10 +368,11 @@ my_mkopt(pTHX_ SV* const opt_list, SV* const moniker, const bool require_unique,
 	}
 
 	if(check_type(opt_list, T_HV)){
-		HV* hv = deref_hv(opt_list);
+		HV* const hv = deref_hv(opt_list);
 		char* key;
 		I32 keylen;
 		SV* val;
+
 		hv_iterinit(hv);
 		opt_av = newAV();
 		sv_2mortal((SV*)opt_av);
@@ -684,21 +683,16 @@ PREINIT:
 	HV* stash = NULL;
 	int i;
 CODE:
-	SvGETMAGIC(into);
-	if(is_string(into)){
-		stash = gv_stashsv(into, TRUE);
-	}
-	else{
-		my_fail(aTHX_ "a package name", into);
-	}
+	stash = gv_stashsv(my_string(aTHX_ into, "a package name"), TRUE);
+
 	if( ((items-1) % 2) != 0 ){
 		my_croak(aTHX_ "Odd number of arguments for %s", GvNAME(CvGV(cv)));
 	}
 	for(i = 1; i < items; i += 2){
-		SV* as   = ST(i);
-		SV* code = ST(i+1);
+		SV* const as = my_string(aTHX_ ST(i), "a subroutine name");
+		SV* code     = ST(i+1);
 		STRLEN namelen;
-		const char* const name = string(as, namelen, "a subroutine name");
+		const char* const name = SvPV_const(as, namelen);
 		CV* const code_cv = deref_cv(code);
 
 		if(SvTYPE(SvRV(code)) != SVt_PVCV){ /* overloaded object */
@@ -707,7 +701,7 @@ CODE:
 		}
 
 		gv = (GV*)*hv_fetch(stash, name, namelen, TRUE);
-		if(SvTYPE(gv) != SVt_PVGV) gv_init(gv, stash, name, namelen, GV_ADDMULTI);
+		if(!isGV(gv)) gv_init(gv, stash, name, namelen, GV_ADDMULTI);
 
 		SvSetMagicSV((SV*)gv, code); /* *foo = \&bar */
 
@@ -721,36 +715,29 @@ void
 uninstall_subroutine(package, ...)
 	SV* package
 PREINIT:
-	HV* stash        = NULL;
+	HV* stash = NULL;
 	int i;
 CODE:
-	SvGETMAGIC(package);
-	if(is_string(package)){
-		stash = gv_stashsv(package, FALSE);
-	}
-	else{
-		my_fail(aTHX_ "a package name", package);
-	}
+	stash = gv_stashsv(my_string(aTHX_ package, "a package name"), FALSE);
 	if(!stash) XSRETURN_EMPTY;
 
 	for(i = 1; i < items; i++){
+		SV* const namesv = my_string(aTHX_ ST(i), "a subroutine name");
 		STRLEN namelen;
-		const char* const name = string(ST(i), namelen, "a subroutine name");
+		const char* const name = SvPV_const(namesv, namelen);
 		GV** const gvp = (GV**)hv_fetch(stash, name, namelen, FALSE);
 		CV* code;
 
 		if(!gvp) continue;
 
-		if(SvROK((SV*)*gvp)){
-			if(ckWARN(WARN_MISC)){
+		if(!isGV(*gvp)){ /* a subroutine stub or special constant*/
+			if(SvROK((SV*)*gvp) && ckWARN(WARN_MISC)){
 				Perl_warner(aTHX_ packWARN(WARN_MISC), "Constant subroutine %s uninstalled", name);
 			}
 			hv_delete(stash, name, namelen, G_DISCARD);
 			continue;
 		}
-		if(SvTYPE(*gvp) != SVt_PVGV){
-			continue;
-		}
+
 		if((code = GvCVu(*gvp))){
 			if(cv_const_sv(code) && ckWARN(WARN_MISC)){
 				Perl_warner(aTHX_ packWARN(WARN_MISC), "Constant subroutine %s uninstalled", name);
@@ -769,8 +756,9 @@ PREINIT:
 PPCODE:
 	gv = CvGV(code);
 	if(gv){
-		const char* stash_name = HvNAME(GvSTASH(gv));
-		assert(stash_name);
+		const char* const stash_name = HvNAME(GvSTASH(gv));
+
+		if(!stash_name) XSRETURN_EMPTY;
 
 		if(GIMME_V == G_ARRAY){
 			EXTEND(SP, 2);
@@ -855,8 +843,9 @@ CODE:
 	after  = newAV(); sv_2mortal((SV*)after );
 
 	for(i = 1; i < items; i += 2){ /* modifier_type => [subroutine(s)] */
+		SV* const mtsv = my_string(aTHX_ ST(i), "a valid modifier type");
 		STRLEN mt_len;
-		const char* const modifier_type = string(ST(i), mt_len, "a modifer type");
+		const char* const modifier_type = SvPV_const(mtsv, mt_len);
 		AV*         const          subs = deref_av(ST(i+1));
 		I32         const      subs_len = av_len(subs) + 1;
 		AV* av = NULL;
@@ -872,18 +861,24 @@ CODE:
 			av = after;
 		}
 		else{
-			my_croak(aTHX_ "Invalid modifier type %s", neat(ST(i)));
+			my_fail(aTHX_ "a valid modifier type", mtsv);
 		}
 
 		av_extend(av, AvFILLp(av) + subs_len - 1);
 		for(j = 0; j < subs_len; j++){
-			SV* code_ref = validate(*av_fetch(subs, j, TRUE), T_CV);
-			av_push(av, newSVsv(code_ref)); /* must be copy */
+			SV* const code_ref = newSVsv(validate(*av_fetch(subs, j, TRUE), T_CV));
+
+			if(av == before){
+				av_unshift(av, 1);
+				av_store(av, 0, code_ref);
+			}
+			else{
+				av_push(av, code_ref);
+			}
 		}
 	}
 
 	modifiers = newAV();
-	sv_2mortal((SV*)modifiers);
 
 	original = newRV_inc((SV*)code);
 	sv_2mortal(original);
@@ -899,6 +894,7 @@ CODE:
 
 	wrapped = newXS(NULL /* anonymous */, XS_Data__Util_wrapped, __FILE__);
 	sv_magicext((SV*)wrapped, (SV*)modifiers, PERL_MAGIC_ext, &wrapped_vtbl, NULL, 0);
+	SvREFCNT_dec((SV*)modifiers); /* refcnt++ in sv_magicext() */
 
 	RETVAL = newRV_noinc((SV*)wrapped);
 OUTPUT:
@@ -916,8 +912,8 @@ PREINIT:
 	*/
 	MAGIC* mg;
 	AV* modifiers; /* (before, around, after, original, current) */
-	SV* command;
-	const char* command_pv;
+	SV* property;
+	const char* property_pv;
 PPCODE:
 	mg = mg_find((SV*)code, PERL_MAGIC_ext);
 	modifiers = (AV*)(mg && mg->mg_virtual == &wrapped_vtbl ? mg->mg_obj : NULL);
@@ -929,34 +925,40 @@ PPCODE:
 		my_fail(aTHX_ "a wrapped subroutine", ST(0) /* ref to code */);
 	}
 
-	command = ST(1);
-	SvGETMAGIC(command);
-	if(!is_string(command)) goto invalid_command;
+	property = my_string(aTHX_ ST(1), "a modifier property");
+	property_pv = SvPV_nolen_const(property);
 
-	command_pv = SvPV_nolen_const(command);
-	if(strEQ(command_pv, "original")){
+	if(strEQ(property_pv, "original")){
 		if(items != 2){
 			my_croak(aTHX_ "Cannot reset the original subroutine");
 		}
 		XPUSHs(*av_fetch(modifiers, M_ORIGINAL, FALSE));
 	}
-	else if(strEQ(command_pv, "before") || strEQ(command_pv, "around") || strEQ(command_pv, "after")){
+	else if(strEQ(property_pv, "before") || strEQ(property_pv, "around") || strEQ(property_pv, "after")){
 		I32 idx =
-			  strEQ(command_pv, "before") ? M_BEFORE
-			: strEQ(command_pv, "around") ? M_AROUND
-			:                               M_AFTER;
+			  strEQ(property_pv, "before") ? M_BEFORE
+			: strEQ(property_pv, "around") ? M_AROUND
+			:                                M_AFTER;
 		AV* property = (AV*)*av_fetch(modifiers, idx, FALSE);
 		if(items != 2){ /* add */
 			I32 i;
 			for(i = 2; i < items; i++){
-				av_push(property, newSVsv(validate(ST(i), T_CV)));
+				SV* const code_ref = newSVsv(validate(ST(i), T_CV));
+				if(idx == M_BEFORE){
+					av_unshift(property, 1);
+					av_store(property, 0, code_ref);
+				}
+				else{
+					av_push(property, code_ref);
+				}
 			}
 
 			if(idx == M_AROUND){
 				AV* const around = (AV*)sv_2mortal((SV*)av_make(items-2, &ST(2)));
 				SV* const current = my_build_around_code(aTHX_
-					*av_fetch(modifiers, M_CURRENT, FALSE),
-					around);
+						*av_fetch(modifiers, M_CURRENT, FALSE),
+						around
+					);
 				av_store(modifiers, M_CURRENT, current);
 				SvREFCNT_inc_simple_void_NN(current);
 			}
@@ -964,8 +966,7 @@ PPCODE:
 		XPUSHav(property, 0, av_len(property)+1);
 	}
 	else{
-		invalid_command:
-		my_fail(aTHX_ "a modifier command", command);
+		my_fail(aTHX_ "a modifier property", property);
 	}
 
 

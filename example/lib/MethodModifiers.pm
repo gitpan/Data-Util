@@ -1,4 +1,5 @@
-package Data::Util::MethodModifiers;
+package # it's an example for wrap_subroutine()
+	MethodModifiers;
 
 use strict;
 use warnings;
@@ -61,14 +62,14 @@ __END__
 
 =head1 NAME
 
-Data::Util::MethodModifiers - Provides Moose-like method modifiers
+MethodModifiers - Provides Moose-like method modifiers
 
 =head1 SYNOPSIS
 
 	package Foo;
 	use warnings;
 	use Data::Util qw(:all);
-	use Data::Util::MethodModifiers;
+	use MethodModifiers;
 
 	before old_method =>
 		curry \&warnings::warnif, deprecated => q{"old_method" is deprecated, use "new_method" instead};
@@ -90,6 +91,9 @@ provides C<Moose>-like method modifiers.
 
 This is just a front-end of C<Data::Util::wrap_subroutine()> and
 C<Data::Util::subroutine_modifier()>.
+
+This is just a demo module for C<Data::Util::wrap_subroutine()>
+and C<Data::Util::subroutine_modifier()>.
 
 See L<Data::Util> for details.
 

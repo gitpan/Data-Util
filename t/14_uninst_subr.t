@@ -1,14 +1,20 @@
 #!perl -w
 
 use strict;
-use Test::More tests => 21;
-
+use Test::More tests => 23;
 use Test::Exception;
 
 use constant HAS_SCOPE_GUARD => eval{ require Scope::Guard };
 
-
 use Data::Util qw(:all);
+
+{
+	package Base;
+	sub f{42};
+	package Derived;
+	our @ISA = qw(Base);
+	sub f;
+}
 
 sub foo(){ (42, 43) }
 
@@ -29,7 +35,11 @@ ok !__PACKAGE__->can('foo'), 'cannot';
 is $foo, 10, 'remains other slots';
 is $before, $after, 'compare globs directly';
 
-uninstall_subroutine(__PACKAGE__, 'foo');
+uninstall_subroutine(__PACKAGE__, 'foo'); # ok
+
+uninstall_subroutine('Derived' => 'f');
+is scalar(get_code_info(Derived->can('f'))), 'Base::f', 'uninstall subroutine stubs';
+is(Derived->f(), 42);
 
 sub f1{}
 sub f2{}

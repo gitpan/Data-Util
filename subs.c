@@ -1,30 +1,44 @@
 /*
 	Data-Util/subs.c
 */
-
 #include "data-util.h"
 
 extern MGVTBL curried_vtbl;
 extern MGVTBL wrapped_vtbl;
 
-
-
-
+#define mg_find_by_vtbl(sv, vtbl) my_mg_find_by_vtbl(aTHX_ sv, vtbl)
+static MAGIC*
+my_mg_find_by_vtbl(pTHX_ SV* const sv, const MGVTBL* const vtbl){
+	MAGIC* mg = NULL;
+	for(mg = SvMAGIC(sv); mg; mg = mg->mg_moremagic){
+		if(mg->mg_virtual == vtbl){
+			break;
+		}
+	}
+	return mg;
+}
 
 XS(XS_Data__Util_curried){
 	dVAR; dXSARGS;
-	MAGIC* const mg = mg_find((SV*)cv, PERL_MAGIC_ext);
-
+	MAGIC* const mg = mg_find_by_vtbl((SV*)cv, &curried_vtbl);
 	assert(mg);
-	assert(mg->mg_virtual == &curried_vtbl);
 
 	SP -= items;
 	/*
-		args: [    x,     y, undef,     z , @_ ]
-		pls:  [undef, undef,    *_, undef]
+	  NOTE:
+	  Curried subroutines have two properties, "args" and placeholders("pls").
+	  Geven a curried subr created by "curry(\&f, $x, *_, $y, \0):
+		args: [   $x, undef,    $y, undef]
+		pls:  [undef,    *_, undef,     0]
 
-		->
-		SP:   [    x,     y,    @_,     z]
+	  Here the curried subroutine is called with arguments.
+	  Firstly, the arguments are set to args, expanding subscriptive placeholders,
+	  but the placeholder "*_" is set to the end of args.
+	  	args: [   $x,      undef,    $y, $_[0], @_[1 .. $#_] ]
+	  Then, args are pushed into SP, expanding "*_".
+		SP:   [   $x, @_[1..$#_],    $y, $_[0] ]
+	  Finally, args are cleand up.
+	  	args: [   $x,      undef,    $y, undef ]
 	*/
 	{
 		AV* const args         = (AV*)mg->mg_obj;
@@ -35,7 +49,7 @@ XS(XS_Data__Util_curried){
 		SV**const pls_ary      = AvARRAY(pls);
 
 		I32  maxp              = -1;
-		SV** expanded          = NULL; // expanded *_
+		SV** expanded          = NULL; // indicates *_
 
 		I32 const is_method    = XSANY.any_i32;
 		I32 const start_idx    = is_method ? 2 : 1;
@@ -46,7 +60,7 @@ XS(XS_Data__Util_curried){
 		/* fill in args */
 		for(i = 0; i < len; i++){
 			SV* const sv = pls_ary[i];
-			if(SvIOK(sv)){ /* subscriptive placeholder */
+			if(SvIOK(sv)){ /* subscriptive placeholders */
 				IV p = SvIVX(sv);
 				if(p < 0) p += items + 1;
 
@@ -64,11 +78,10 @@ XS(XS_Data__Util_curried){
 					I32 j;
 
 					/* 
-					   Arguments @_ is pushed into the end of args,
+					   All the arguments @_ is pushed into the end of args,
 					   not calling SvREFCNT_inc().
 					*/
-
-					av_extend(args, len + items); /* realloc */
+					av_extend(args, len + items); /* maybe realloc() */
 					args_ary = AvARRAY(args);
 
 					expanded = &args_ary[len];
@@ -135,10 +148,8 @@ my_call_av(pTHX_ AV* const subs, AV* const args){
 
 XS(XS_Data__Util_wrapped){
 	dVAR; dXSARGS;
-	MAGIC* mg = mg_find((SV*)cv, PERL_MAGIC_ext);
-
+	MAGIC* const mg = mg_find_by_vtbl((SV*)cv, &wrapped_vtbl);
 	assert(mg);
-	assert(mg->mg_virtual == &wrapped_vtbl);
 
 	SP -= items;
 	{
@@ -146,9 +157,10 @@ XS(XS_Data__Util_wrapped){
 		AV* const before  = (AV*)AvARRAY(subs_av)[M_BEFORE];
 		SV* const current = (SV*)AvARRAY(subs_av)[M_CURRENT];
 		AV* const after   = (AV*)AvARRAY(subs_av)[M_AFTER];
+		I32 i;
+
 		dXSTARG;
 		AV* const args = (AV*)TARG;
-		I32 i;
 		SvUPGRADE(TARG, SVt_PVAV);
 
 		av_extend(args, items - 1);

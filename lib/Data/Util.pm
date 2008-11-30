@@ -4,12 +4,12 @@ use 5.008_001;
 use strict;
 #use warnings;
 
-our $VERSION = '0.29_01';
+our $VERSION = '0.29_02';
 
 use Exporter qw(import);
 
 {
-	local($!, $@);
+	local($@);
 	our $TESTING_PERL_ONLY or eval{
 		require XSLoader;
 		XSLoader::load(__PACKAGE__, $VERSION);
@@ -42,6 +42,7 @@ our @EXPORT_OK = qw(
 	mkopt
 	mkopt_hash
 );
+
 our %EXPORT_TAGS = (
 	all => \@EXPORT_OK,
 
@@ -55,8 +56,6 @@ our %EXPORT_TAGS = (
 	)],
 );
 
-
-
 1;
 __END__
 
@@ -66,7 +65,7 @@ Data::Util - A selection of utilities for data and data types
 
 =head1 VERSION
 
-This document describes Data::Util version 0.29_01
+This document describes Data::Util version 0.29_02
 
 =head1 SYNOPSIS
 
@@ -387,6 +386,8 @@ L<Sub::Identify>.
 L<Sub::Delete>.
 
 L<Sub::Curry>.
+
+L<Class::MOP>.
 
 L<Class::Method::Modifiers>.
 

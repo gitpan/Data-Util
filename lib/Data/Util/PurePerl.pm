@@ -201,13 +201,11 @@ sub uninstall_subroutine {
 
 		my $glob = $stash->{$name};
 
-		if(ref $glob){
-			warnings::warnif(misc => "Constant subroutine $name uninstalled");
-			delete $stash->{$name};
-			next;
-		}
-
 		if(ref(\$glob) ne 'GLOB'){
+			if(ref $glob){
+				warnings::warnif(misc => "Constant subroutine $name uninstalled");
+			}
+			delete $stash->{$name};
 			next;
 		}
 
@@ -318,7 +316,9 @@ BEGIN{
 
 		@before = map{ code_ref $_ } @{array_ref $args{before}} if exists $args{before};
 		@around = map{ code_ref $_ } @{array_ref $args{around}} if exists $args{around};
-		@after  = map{ code_ref $_ } @{array_ref $args{after}} if exists $args{after};
+		@after  = map{ code_ref $_ } @{array_ref $args{after}}  if exists $args{after};
+
+		@before = reverse @before; # last-defined-first-called
 
 		my %props = (
 			before      => \@before,
@@ -366,7 +366,7 @@ END_CXT
 		return $wrapped;
 	}
 
-	my %valid_modifier_command = map{ $_ => undef } qw(before around after original);
+	my %valid_modifiers = map{ $_ => undef } qw(before around after original);
 
 	sub subroutine_modifier{
 		my $wrapped = code_ref shift;
@@ -381,7 +381,7 @@ END_CXT
 		}
 
 		my($name, @subs) = @_;
-		(_is_string($name) && exists $valid_modifier_command{$name}) or _fail('a modifier command', $name);
+		(_is_string($name) && exists $valid_modifiers{$name}) or _fail('a modifier property', $name);
 
 
 		if($name eq 'original'){
@@ -393,7 +393,12 @@ END_CXT
 		else{ # before, around, after
 			my $property = $props_ref->{$name};
 			if(@subs){
-				push @{$property}, map{ code_ref $_ } @subs;
+				if($name eq 'before'){
+					unshift @{$property}, reverse map{ code_ref $_ } @subs;
+				}
+				else{
+					push @{$property}, map{ code_ref $_ } @subs;
+				}
 
 				if($name eq 'around'){
 					my $current_ref = $props_ref->{current_ref};
@@ -484,3 +489,16 @@ sub mkopt_hash {
 }
 
 1;
+__END__
+
+=head1 NAME
+
+Data::Util::PurePerl - The Pure Perl backend for Data::Util
+
+=head1 DESCRIPTION
+
+This module is a backend for C<Data::Util>.
+
+Don't use this module directly; C<use Data::Util> instead.
+
+=cut

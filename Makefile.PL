@@ -9,8 +9,7 @@ all_from 'lib/Data/Util.pm';
 
 requires 'Exporter'    => 5.57;
 requires 'XSLoader'    => 0.06;
-requires 'MRO::Compat' => 0.09           if $] < 5.010_000;
-requires 'Hash::Util::FieldHash::Compat';
+requires 'MRO::Compat' => 0.09  if $] < 5.010_000;
 
 test_requires 'Test::More'      => 0.62;
 test_requires 'Test::Exception' => 0.27;
@@ -31,12 +30,14 @@ if($use_xs){
 		DEFINE => '-DINLINE_STR_EQ',
 		OBJECT => '$(O_FILES)',
 	);
+	test_requires 'Hash::Util::FieldHash::Compat';
 }
 else{
 	makemaker_args(
 		XS => {},
 		C  => [],
 	);
+	requires 'Hash::Util::FieldHash::Compat';
 }
 
 WriteMakefile(

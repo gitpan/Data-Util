@@ -1,8 +1,7 @@
 #!perl -w
 
 use strict;
-use Test::More tests => 37;
-
+use Test::More tests => 41;
 use Test::Exception;
 
 use constant HAS_SCOPE_GUARD => eval{ require Scope::Guard };
@@ -15,7 +14,6 @@ my @tags;
 sub before{ push @tags, 'before'; }
 sub around{ push @tags, 'around'; my $next = shift; $next->(@_) }
 sub after { push @tags, 'after'; }
-
 
 ok is_code_ref(wrap_subroutine(\&foo)), 'wrap_subroutine()';
 
@@ -73,6 +71,8 @@ subroutine_modifier $w, after  => \&after,  \&after;
 is_deeply [$w->(1 .. 10)], [1 .. 10];
 is_deeply \@tags, [('before') x 12, ('around') x 12, ('after') x 12], 'add modifiers';
 
+# calling order and copying
+
 sub f1{
 	push @tags, 'f1';
 	my $next = shift;
@@ -83,11 +83,55 @@ sub f2{
 	my $next = shift;
 	$next->(@_);
 }
+sub f3{
+	push @tags, 'f3';
+	my $next = shift;
+	$next->(@_);
+}
 
-$w = wrap_subroutine \&foo, around => [\&f1, \&f2];
+
+sub before2{ push @tags, 'before2' }
+sub before3{ push @tags, 'before3' }
+
+sub after2 { push @tags, 'after2'  }
+sub after3 { push @tags, 'after3'  }
+
+$w = wrap_subroutine \&foo, around => [\&f1];
+subroutine_modifier $w, around => \&f2, \&f3;
 @tags = ();
-is_deeply [$w->()], [];
-is_deeply \@tags, ['f2', 'f1'], ':around order';
+$w->();
+is_deeply \@tags, ['f3', 'f2', 'f1'], ':around order';
+
+$w = wrap_subroutine \&foo, around => [ \&f1, \&f2, \&f3 ];
+@tags = ();
+$w->();
+is_deeply \@tags, ['f3', 'f2', 'f1'], ':around order';
+
+
+$w = wrap_subroutine \&foo, before => [\&before];
+subroutine_modifier $w, before => \&before2, \&before3;
+@tags = ();
+$w->();
+is_deeply \@tags, ['before3', 'before2', 'before'], ':before order';
+
+$w = wrap_subroutine \&foo, before => [ \&before, \&before2, \&before3 ];
+@tags = ();
+$w->();
+is_deeply \@tags, ['before3', 'before2', 'before'], ':before order';
+
+
+$w = wrap_subroutine \&foo, after => [\&after];
+subroutine_modifier $w, after => \&after2, \&after3;
+@tags = ();
+$w->();
+is_deeply \@tags, ['after', 'after2', 'after3'], ':after order';
+
+$w = wrap_subroutine \&foo, after => [ \&after, \&after2, \&after3 ];
+@tags = ();
+$w->();
+is_deeply \@tags, ['after', 'after2', 'after3'], ':after order';
+
+# GC
 
 SKIP:{
 	skip 'requires Scope::Gurard for testing GC',    3 unless HAS_SCOPE_GUARD;
@@ -115,6 +159,8 @@ SKIP:{
 	is $i, 10, '... and the argument is also released';
 }
 
+# FATAL
+
 dies_ok{
 	wrap_subroutine(undef);
 };
@@ -136,10 +182,10 @@ $w = wrap_subroutine(\&foo);
 
 throws_ok{
 	subroutine_modifier($w, 'foo');
-} qr/Validation failed:.* a modifier command/;
+} qr/Validation failed:.* a modifier property/;
 throws_ok{
 	subroutine_modifier($w, undef);
-} qr/Validation failed:.* a modifier command/;
+} qr/Validation failed:.* a modifier property/;
 throws_ok{
 	subroutine_modifier(\&foo, 'original');
 } qr/Validation failed:.* a wrapped subroutine/;
