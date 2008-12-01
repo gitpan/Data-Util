@@ -48,7 +48,7 @@ WriteMakefile(
 			*.gcov *.gcda *.gcno
 			*.out
 			nytprof
-			cover_db,
+			cover_db
 		},
 	},
 );

@@ -1,7 +1,7 @@
 #!perl -w
 
 use strict;
-use Test::More tests => 41;
+use Test::More tests => 43;
 use Test::Exception;
 
 use constant HAS_SCOPE_GUARD => eval{ require Scope::Guard };
@@ -61,6 +61,7 @@ $w = wrap_subroutine \&foo, before => [(\&before) x 10], around => [(\&around) x
 
 @tags = ();
 is_deeply [$w->(42)], [42];
+
 is_deeply \@tags, [('before') x 10, ('around') x 10, ('after') x 10], 'with multiple modifiers';
 
 subroutine_modifier $w, before => \&before, \&before;
@@ -130,6 +131,18 @@ $w = wrap_subroutine \&foo, after => [ \&after, \&after2, \&after3 ];
 @tags = ();
 $w->();
 is_deeply \@tags, ['after', 'after2', 'after3'], ':after order';
+
+# Modifier's args
+
+sub mutator{
+	$_[0]++;
+}
+
+$w = wrap_subroutine(\&foo, before => [\&mutator]);
+my $n = 42;
+is_deeply [ $w->($n) ], [43]; # $n++
+is $n, 43;
+
 
 # GC
 

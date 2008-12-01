@@ -1,13 +1,10 @@
 #!perl -w
-
 use strict;
 use Benchmark qw(:all);
-
 
 use FindBin qw($Bin);
 use lib $Bin, "$Bin/../example/lib";
 use Common;
-
 
 {
 	package Base;
@@ -15,7 +12,6 @@ use Common;
 	sub g{ 42 }
 	sub h{ 42 }
 }
-
 
 my $i = 0;
 sub around{

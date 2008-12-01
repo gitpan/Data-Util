@@ -90,10 +90,7 @@ This module is an implementation of C<Class::Method::Modifiers> that
 provides C<Moose>-like method modifiers.
 
 This is just a front-end of C<Data::Util::wrap_subroutine()> and
-C<Data::Util::subroutine_modifier()>.
-
-This is just a demo module for C<Data::Util::wrap_subroutine()>
-and C<Data::Util::subroutine_modifier()>.
+C<Data::Util::subroutine_modifier()>
 
 See L<Data::Util> for details.
 
@@ -122,6 +119,8 @@ See L<Data::Util> for details.
 =head1 SEE ALSO
 
 L<Data::Util>.
+
+L<Method::Modifiers>
 
 L<Moose>.
 

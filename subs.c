@@ -131,9 +131,8 @@ XS(XS_Data__Util_curried){
 }
 
 static void
-my_call_av(pTHX_ AV* const subs, AV* const args){
+my_call_av(pTHX_ AV* const subs, AV* const args, I32 const args_len){
 	const I32 subs_len = AvFILLp(subs) + 1;
-	const I32 args_len = AvFILLp(args) + 1;
 	I32 i;
 	dSP;
 
@@ -143,6 +142,7 @@ my_call_av(pTHX_ AV* const subs, AV* const args){
 		PUTBACK;
 
 		call_sv(AvARRAY(subs)[i], G_VOID | G_DISCARD);
+		SPAGAIN;
 	}
 }
 
@@ -168,7 +168,7 @@ XS(XS_Data__Util_wrapped){
 			AvARRAY(args)[i] = ST(i); /* no need to SvREFCNT_inc() */
 		}
 
-		my_call_av(aTHX_ before, args);
+		my_call_av(aTHX_ before, args, items);
 
 		PUSHMARK(SP);
 		XPUSHav(args, 0, items);
@@ -176,7 +176,7 @@ XS(XS_Data__Util_wrapped){
 
 		call_sv(current, GIMME_V);
 
-		my_call_av(aTHX_ after, args);
+		my_call_av(aTHX_ after, args, items);
 	}
 	/* Don't XSRETURN(n) */
 }
