@@ -3,13 +3,14 @@ benchmark/Common.pm
 benchmark/curry_bench.pl
 benchmark/gen_bench.pl
 benchmark/get_stash_bench.pl
-benchmark/inst_bench.pl
+benchmark/install_subr_bench.pl
+benchmark/instance_bench.pl
 benchmark/invocant_bench.pl
 benchmark/methext_bench.pl
 benchmark/mkopt_bench.pl
 benchmark/modifier_bench.pl
+benchmark/modify_bench.pl
 benchmark/ref_bench.pl
-benchmark/wrap_bench.pl
 c99portability.h
 Changes
 data-util.h
@@ -19,7 +20,6 @@ example/lib/MethodModifiers.pm
 example/modifier.pl
 example/neat.pl
 example/synopsis.pl
-example/test.pl
 inc/Module/Install.pm
 inc/Module/Install/AuthorTests.pm
 inc/Module/Install/Base.pm
@@ -58,7 +58,7 @@ t/12_in_attr_handler.t
 t/13_optlist.t
 t/14_uninst_subr.t
 t/15_curry.t
-t/16_wrap.t
+t/16_modify.t
 t/pp01_refs.t
 t/pp02_inst.t
 t/pp03_gen.t
@@ -73,7 +73,7 @@ t/pp12_in_attr_handler.t
 t/pp13_optlist.t
 t/pp14_uninst_subr.t
 t/pp15_curry.t
-t/pp16_wrap.t
+t/pp16_modify.t
 typemap
 xt/01_pod.t
 xt/02_pod-coverage.t

@@ -8,18 +8,18 @@ use Data::Util qw(is_instance);
 
 BEGIN{
 	if(exists $INC{'Data/Util/PurePerl.pm'}){
-		plan skip_all => 'In testing perl only';
+		plan skip_all => 'For XS only';
 	}
 	else{
 		plan tests => 27;
 	}
 }
 
-BEGIN{ $^W = 0 }
-no warnings;
+local $SIG{__WARN__} = sub{}; # ignore
 
 BEGIN{
-	
+	no warnings;
+
 	sub UNIVERSAL::new{
 		bless {} => shift;
 	}

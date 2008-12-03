@@ -4,21 +4,24 @@ use 5.008_001;
 use strict;
 #use warnings;
 
-our $VERSION = '0.30';
+our $VERSION = '0.31';
 
 use Exporter qw(import);
 
-{
-	local($@);
-	our $TESTING_PERL_ONLY or eval{
+our $TESTING_PERL_ONLY;
+$TESTING_PERL_ONLY = $ENV{DATA_UTIL_PUREPERL} unless defined $TESTING_PERL_ONLY;
+
+unless($TESTING_PERL_ONLY){
+	local $@;
+
+	$TESTING_PERL_ONLY = !eval{
 		require XSLoader;
 		XSLoader::load(__PACKAGE__, $VERSION);
 	};
 }
 
-require q{Data/Util/PurePerl.pm} # not to create "Data::Util::PurePerl" namespace
-	unless defined &instance;
-
+require q{Data/Util/PurePerl.pm} # not to create the namespace
+	if $TESTING_PERL_ONLY;
 
 our @EXPORT_OK = qw(
 	is_scalar_ref is_array_ref is_hash_ref is_code_ref is_glob_ref is_regex_ref
@@ -36,12 +39,14 @@ our @EXPORT_OK = qw(
 	get_code_info
 
 	curry
-	wrap_subroutine
+	modify_subroutine
 	subroutine_modifier
 
 	mkopt
 	mkopt_hash
 );
+
+push @EXPORT_OK, qw(wrap_subroutine); # deprecated
 
 our %EXPORT_TAGS = (
 	all => \@EXPORT_OK,
@@ -65,7 +70,7 @@ Data::Util - A selection of utilities for data and data types
 
 =head1 VERSION
 
-This document describes Data::Util version 0.30
+This document describes Data::Util version 0.31
 
 =head1 SYNOPSIS
 
@@ -304,9 +309,9 @@ This is also considered as lightweight closures.
 
 See also L<Data::Util::Curry>.
 
-=item wrap_subroutine(subr, ...)
+=item modify_subroutine(subr, ...)
 
-Wraps I<subr> with subroutine modifiers and returns the wrapped subroutine.
+Modifies I<subr> with subroutine modifiers and returns the modified subroutine.
 This is also considered as lightweight closures.
 
 I<subr> must be a code reference or callable object.
@@ -316,22 +321,22 @@ C<< before => [subroutine(s)] >> called before I<subr>.
 C<< around => [subroutine(s)] >> called around I<subr>.
 C<< after  => [subroutine(s)] >> called after  I<subr>.
 
-This is considered as a constructor of wrapped subroutines, and
+This is considered as a constructor of modified subroutines, and
 C<subroutine_modifier()> property accessors.
 
-=item subroutine_modifier(wrapped)
+=item subroutine_modifier(subr)
 
-Returns whether I<wrapped> is a wrapped subroutine.
+Returns whether I<modified_subr> is a modified subroutine.
 
-=item subroutine_modifier(wrapped, property)
+=item subroutine_modifier(modified_subr, property)
 
-Gets I<property> from I<wrapped>.
+Gets I<property> from I<modified>.
 
 Valid properties are: C<before>, C<around>, C<after> and C<original>.
 
-=item subroutine_modifier(wrapped, modifier => [subroutine(s)])
+=item subroutine_modifier(modified_subr, modifier => [subroutine(s)])
 
-Adds subroutine I<modifier> to I<wrapped>.
+Adds subroutine I<modifier> to I<modified_subr>.
 
 Valid modifiers are: C<before>, C<around>, C<after>.
 

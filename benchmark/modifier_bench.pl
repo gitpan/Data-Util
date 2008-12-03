@@ -48,14 +48,14 @@ sub around{
 }
 
 signeture
-	'Data::Util' => \&Data::Util::wrap_subroutine,
+	'Data::Util' => \&Data::Util::modify_subroutine,
 	'Moose' => \&Moose::around,
 	'Class::Method::Modifiers' => \&Class::Method::Modifiers::around,
 ;
 
 print "Calling methods with before modifiers:\n";
 cmpthese -1 => {
-	wrap => sub{
+	du => sub{
 		my $old = $i;
 		DUMM->f();
 		$i == ($old+1) or die $i;
@@ -74,7 +74,7 @@ cmpthese -1 => {
 
 print "\n", "Calling methods with around modifiers:\n";
 cmpthese -1 => {
-	wrap => sub{
+	du => sub{
 		my $old = $i;
 		DUMM->g();
 		$i == ($old+1) or die $i;
@@ -92,7 +92,7 @@ cmpthese -1 => {
 };
 print "\n", "Calling methods with after modifiers:\n";
 cmpthese -1 => {
-	wrap => sub{
+	du => sub{
 		my $old = $i;
 		DUMM->h();
 		$i == ($old+1) or die $i;

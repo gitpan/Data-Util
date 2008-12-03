@@ -63,5 +63,10 @@ enum{
 	M_LENGTH
 };
 
+#define mg_find_by_vtbl(sv, vtbl) my_mg_find_by_vtbl(aTHX_ sv, vtbl)
+MAGIC*
+my_mg_find_by_vtbl(pTHX_ SV* const sv, const MGVTBL* const vtbl);
+
+
 XS(XS_Data__Util_curried);
-XS(XS_Data__Util_wrapped);
+XS(XS_Data__Util_modified);

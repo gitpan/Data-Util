@@ -39,18 +39,18 @@ sub around{
 	}
 	Data::Util::install_subroutine(
 		__PACKAGE__,
-		j => Data::Util::wrap_subroutine(__PACKAGE__->can('j')),
+		j => Data::Util::modify_subroutine(__PACKAGE__->can('j')),
 	);
 }
 
 signeture
-	'Data::Util' => \&Data::Util::wrap_subroutine,
+	'Data::Util' => \&Data::Util::modify_subroutine,
 ;
 
 print <<'END';
 Calling extended methods:
 	inher  - no extended, only inherited
-	wrap   - no extended, only wrapped
+	simple - no extended, only modified
 
 	before - extended with :before modifier
 	around - extended with :around modifier
@@ -75,7 +75,7 @@ cmpthese -1 => {
 	super => sub{
 		X->i(42) == 42 or die;
 	},
-	wrap => sub{
+	simple => sub{
 		X->j(42) == 42 or die;
 	},
 };

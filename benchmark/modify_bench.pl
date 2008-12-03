@@ -8,7 +8,7 @@ use FindBin qw($Bin);
 use lib $Bin;
 use Common;
 
-signeture 'Data::Util' => \&wrap_subroutine;
+signeture 'Data::Util' => \&modify_subroutine;
 
 sub f  { 42 }
 
@@ -23,9 +23,9 @@ my @before = (\&before, \&before);
 my @around = (\&around);
 my @after  = (\&after, \&after);
 
-my $wrapped = wrap_subroutine(\&f, before => \@before, around => \@around, after => \@after);
+my $modified = modify_subroutine(\&f, before => \@before, around => \@around, after => \@after);
 
-sub wrap{
+sub modify{
 	my $subr   = shift;
 	my @before = @{(shift)};
 	my @around = @{(shift)};
@@ -40,18 +40,18 @@ sub wrap{
 		return wantarray ? @ret : $ret[0];
 	};
 }
-my $closure = wrap(\&f, \@before, \@around, \@after);
+my $closure = modify(\&f, \@before, \@around, \@after);
 
-$wrapped->(-1) == 43 or die $wrapped->(-10);
+$modified->(-1) == 43 or die $modified->(-10);
 $closure->(-2) == 43 or die $closure->(-20);
 
-print "Creation of wrapped subs:\n";
+print "Creation of modified subs:\n";
 cmpthese timethese -1 => {
-	wrap => sub{
-		my $w = wrap_subroutine(\&f, before => \@before, around => \@around, after => \@after);
+	modify => sub{
+		my $w = modify_subroutine(\&f, before => \@before, around => \@around, after => \@after);
 	},
 	closure => sub{
-		my $w = wrap(\&f, \@before, \@around, \@after);
+		my $w = modify(\&f, \@before, \@around, \@after);
 	},
 };
 
@@ -61,10 +61,10 @@ sub combined{
 	$_->(@_) for @after;
 }
 
-print "Calling wrapped subs:\n";
+print "Calling modified subs:\n";
 cmpthese timethese -1 => {
-	wrap => sub{
-		$wrapped->(42);
+	modify => sub{
+		$modified->(42);
 	},
 	closure => sub{
 		$closure->(42);

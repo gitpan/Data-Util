@@ -305,10 +305,14 @@ BEGIN{
 	};
 
 	sub wrap_subroutine{
+		warnings::warnif(deprecated => 'wrap_subroutine() has been deprecated, use modify_subroutine() instead');
+		goto &modify_subroutine;
+	}
+	sub modify_subroutine{
 		my $code   = code_ref  shift;
 
 		if((@_ % 2) != 0){
-			_croak('Odd number of arguments for wrap_subroutine()');
+			_croak('Odd number of arguments for modify_subroutine()');
 		}
 		my %args   = @_;
 
@@ -341,7 +345,7 @@ package %s;
 #line %s %s
 END_CXT
 
-		my $wrapped = eval $context . q{sub{
+		my $modified = eval $context . q{sub{
 			$_->(@_) for @before;
 			if(wantarray){ # list context
 				my @ret = $code->(@_);
@@ -362,22 +366,22 @@ END_CXT
 
 		$initializer->() if $initializer;
 
-		$modifiers{$wrapped} = \%props;
-		return $wrapped;
+		$modifiers{$modified} = \%props;
+		return $modified;
 	}
 
 	my %valid_modifiers = map{ $_ => undef } qw(before around after original);
 
 	sub subroutine_modifier{
-		my $wrapped = code_ref shift;
+		my $modified = code_ref shift;
 
-		my $props_ref = $modifiers{$wrapped};
+		my $props_ref = $modifiers{$modified};
 
 		unless(@_){ # subroutine_modifier($subr) - only checking
 			return defined $props_ref;
 		}
-		unless($props_ref){ # otherwise, it should be wrapped subroutines
-			_fail('a wrapped subroutine', $wrapped);
+		unless($props_ref){ # otherwise, it should be modified subroutines
+			_fail('a modified subroutine', $modified);
 		}
 
 		my($name, @subs) = @_;

@@ -15,9 +15,9 @@ sub before{ push @tags, 'before'; }
 sub around{ push @tags, 'around'; my $next = shift; $next->(@_) }
 sub after { push @tags, 'after'; }
 
-ok is_code_ref(wrap_subroutine(\&foo)), 'wrap_subroutine()';
+ok is_code_ref(modify_subroutine(\&foo)), 'modify_subroutine()';
 
-my $w = wrap_subroutine \&foo,
+my $w = modify_subroutine \&foo,
 	before => [\&before],
 	around => [\&around],
 	after => [\&after];
@@ -39,25 +39,25 @@ is_deeply \@tags, [qw(before around after)];
 is_deeply [$w->(1 .. 10)], [1 .. 10],   'call with list context';
 is_deeply \@tags, [qw(before around after)];
 
-$w = wrap_subroutine \&foo;
+$w = modify_subroutine \&foo;
 subroutine_modifier $w, before => \&before;
 @tags = ();
 is_deeply [$w->(1 .. 10)], [1 .. 10];
 is_deeply \@tags, [qw(before)], 'add :before modifiers';
 
-$w = wrap_subroutine \&foo;
+$w = modify_subroutine \&foo;
 subroutine_modifier $w, around => \&around;
 @tags = ();
 is_deeply [$w->(1 .. 10)], [1 .. 10];
 is_deeply \@tags, [qw(around)], 'add :around modifiers';
 
-$w = wrap_subroutine \&foo;
+$w = modify_subroutine \&foo;
 subroutine_modifier $w, after  => \&after;
 @tags = ();
 is_deeply [$w->(1 .. 10)], [1 .. 10];
 is_deeply \@tags, [qw(after)], 'add :after modifiers';
 
-$w = wrap_subroutine \&foo, before => [(\&before) x 10], around => [(\&around) x 10], after => [(\&after) x 10];
+$w = modify_subroutine \&foo, before => [(\&before) x 10], around => [(\&around) x 10], after => [(\&after) x 10];
 
 @tags = ();
 is_deeply [$w->(42)], [42];
@@ -97,37 +97,37 @@ sub before3{ push @tags, 'before3' }
 sub after2 { push @tags, 'after2'  }
 sub after3 { push @tags, 'after3'  }
 
-$w = wrap_subroutine \&foo, around => [\&f1];
+$w = modify_subroutine \&foo, around => [\&f1];
 subroutine_modifier $w, around => \&f2, \&f3;
 @tags = ();
 $w->();
 is_deeply \@tags, ['f3', 'f2', 'f1'], ':around order';
 
-$w = wrap_subroutine \&foo, around => [ \&f1, \&f2, \&f3 ];
+$w = modify_subroutine \&foo, around => [ \&f1, \&f2, \&f3 ];
 @tags = ();
 $w->();
 is_deeply \@tags, ['f3', 'f2', 'f1'], ':around order';
 
 
-$w = wrap_subroutine \&foo, before => [\&before];
+$w = modify_subroutine \&foo, before => [\&before];
 subroutine_modifier $w, before => \&before2, \&before3;
 @tags = ();
 $w->();
 is_deeply \@tags, ['before3', 'before2', 'before'], ':before order';
 
-$w = wrap_subroutine \&foo, before => [ \&before, \&before2, \&before3 ];
+$w = modify_subroutine \&foo, before => [ \&before, \&before2, \&before3 ];
 @tags = ();
 $w->();
 is_deeply \@tags, ['before3', 'before2', 'before'], ':before order';
 
 
-$w = wrap_subroutine \&foo, after => [\&after];
+$w = modify_subroutine \&foo, after => [\&after];
 subroutine_modifier $w, after => \&after2, \&after3;
 @tags = ();
 $w->();
 is_deeply \@tags, ['after', 'after2', 'after3'], ':after order';
 
-$w = wrap_subroutine \&foo, after => [ \&after, \&after2, \&after3 ];
+$w = modify_subroutine \&foo, after => [ \&after, \&after2, \&after3 ];
 @tags = ();
 $w->();
 is_deeply \@tags, ['after', 'after2', 'after3'], ':after order';
@@ -138,7 +138,7 @@ sub mutator{
 	$_[0]++;
 }
 
-$w = wrap_subroutine(\&foo, before => [\&mutator]);
+$w = modify_subroutine(\&foo, before => [\&mutator]);
 my $n = 42;
 is_deeply [ $w->($n) ], [43]; # $n++
 is $n, 43;
@@ -155,7 +155,7 @@ SKIP:{
 		my $gbefore = Scope::Guard->new(\&before);
 		my $gafter  = Scope::Guard->new(\&after);
 
-		my $w = wrap_subroutine \&foo, before => [sub{ $gbefore }], after => [sub{ $gafter }]; # makes closures
+		my $w = modify_subroutine \&foo, before => [sub{ $gbefore }], after => [sub{ $gafter }]; # makes closures
 	}
 	is_deeply [sort @tags], [sort((qw(after before)) x 10)], 'closed values are released';
 
@@ -165,7 +165,7 @@ SKIP:{
 		my $gbefore = Scope::Guard->new(\&before);
 		my $gafter  = Scope::Guard->new(\&after);
 
-		my $w = wrap_subroutine \&foo, before => [sub{ $gbefore }], after => [sub{ $gafter }];
+		my $w = modify_subroutine \&foo, before => [sub{ $gbefore }], after => [sub{ $gafter }];
 		$w->(Scope::Guard->new( sub{ $i++ } ));
 	}
 	is_deeply [sort @tags], [sort((qw(after before)) x 10)], '... called and released';
@@ -175,23 +175,23 @@ SKIP:{
 # FATAL
 
 dies_ok{
-	wrap_subroutine(undef);
+	modify_subroutine(undef);
 };
 dies_ok{
-	wrap_subroutine(\&foo, []);
+	modify_subroutine(\&foo, []);
 };
 
 dies_ok{
-	wrap_subroutine(\&foo, before => [1]);
+	modify_subroutine(\&foo, before => [1]);
 };
 dies_ok{
-	wrap_subroutine(\&foo, around => [1]);
+	modify_subroutine(\&foo, around => [1]);
 };
 dies_ok{
-	wrap_subroutine(\&foo, after => [1]);
+	modify_subroutine(\&foo, after => [1]);
 };
 
-$w = wrap_subroutine(\&foo);
+$w = modify_subroutine(\&foo);
 
 throws_ok{
 	subroutine_modifier($w, 'foo');
@@ -201,7 +201,7 @@ throws_ok{
 } qr/Validation failed:.* a modifier property/;
 throws_ok{
 	subroutine_modifier(\&foo, 'original');
-} qr/Validation failed:.* a wrapped subroutine/;
+} qr/Validation failed:.* a modified subroutine/;
 
 throws_ok{
 	subroutine_modifier($w, before => 'foo');

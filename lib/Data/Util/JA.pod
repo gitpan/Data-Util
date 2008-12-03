@@ -7,7 +7,7 @@ Data::Util::JA - データとデータ型のためのユーティリティ集
 
 =head1 VERSION
 
-This document describes Data::Util version 0.30
+This document describes Data::Util version 0.31
 
 =head1 SYNOPSIS
 
@@ -265,14 +265,14 @@ C<subr(2, 3, 1)>が呼び出されます。
 
 より詳しいサンプルコードがL<Data::Util::Curry>にあります。
 
-=item wrap_subroutine(subr, modifier_type => subroutines, ...)
+=item modify_subroutine(subr, modifier_type => subroutines, ...)
 
 サブルーチンI<subr>をI<modifier_type>にしたがってI<subroutines>で修飾し，
-無名関数I<wrapped>として返します。
+無名関数I<modified_subr>として返します。
 
 I<modifier_type>にはC<before>, C<around>, C<after>があり，C<before>は
-I<subr>の呼び出し前に，C<after>はI<subr>の呼出し後に，I<wrapped>に与えられた
-引数で呼び出されます。C<before>とC<after>の戻り値は捨てられます。
+I<subr>の呼び出し前に，C<after>はI<subr>の呼出し後に，I<modified_subr>に
+与えられた引数で呼び出されます。C<before>とC<after>の戻り値は捨てられます。
 C<around>はI<subr>の入出力をフィルタリングするための修飾子です。
 
 その際，呼び出順は，C<before>とC<around>は後で定義されたものが先に呼び出され
@@ -281,24 +281,24 @@ C<around>はI<subr>の入出力をフィルタリングするための修飾子�
 
 たとえば：
 
-	$wrapped = wrap_subroutine(\&foo, around => [sub{
+	$modified = modify_subroutine(\&foo, around => [sub{
 		my $next = shift;
 		do_something();
 		goto &{$next}; # continuation
 	}]);
-	$wrapped->();
+	$modified->();
 
-	$wrapped = wrap_subroutine(\&foo,
+	$modified = modify_subroutine(\&foo,
 		before => \@befores,
 		around => \@arounds,
 		after  => \@afters,
 	);
-	$wrapped->();
+	$modified->();
 
 XSによる実装では，サブルーチンを修飾したときのコストは非常に安くなっています。
 
 このディストリビューションに付属しているF<example/lib/MethodModifiers>
-(C<wrap_subroutine()>/C<subroutine_modifier()>のデモ)のベンチマーク
+(C<modify_subroutine()>/C<subroutine_modifier()>のデモ)のベンチマーク
 F<benchmark/methext_bench.pl>によれば，メソッド修飾のコストは次のようになります：
 
 	with before modifier: 100% slower
@@ -311,27 +311,27 @@ F<benchmark/methext_bench.pl>によれば，メソッド修飾のコストは次
 各修飾子については，L<Class::MOP::Class/"Method Modifiers">に
 詳しい解説があります。
 
-=item subroutine_modifier(wrapped, modifier_type => subroutines, ...)
+=item subroutine_modifier(modified, modifier_type => subroutines, ...)
 
-C<wrap_subroutine()>で生成したI<wrapped>を操作します。
+C<modify_subroutine()>で生成したI<modified>を操作します。
 
-引数をI<wrapped>のみ渡した場合は，そのI<wrapped>がC<wrap_subroutine()>で
+引数をI<modified>のみ渡した場合は，そのI<modified>がC<modify_subroutine()>で
 生成されたものかどうかを示すブール値を返します。
 
-	if(subroutine_modifier $wrapped){
-		# $wrappedは修飾子つきサブルーチン
+	if(subroutine_modifier $subr){
+		# $subrは修飾子つきサブルーチン
 	}
 
-I<wrapped>とI<modifier_type>(C<before>, C<around>, C<after>およびC<original>)
+I<modified>とI<modifier_type>(C<before>, C<around>, C<after>およびC<original>)
 を渡すと，そのI<modifier_type>に応じた修飾関数
 （またはC<original>の場合，元の関数）を返します。
 
-	@befores = subroutine_modifier $wrapped, 'before';
+	@befores = subroutine_modifier $modified, 'before';
 
-このほか，更に関数のリストを渡した場合には，I<wrapped>のI<modifier_type>に
+このほか，更に関数のリストを渡した場合には，I<modified>のI<modifier_type>に
 その関数を追加します。
 
-	subroutine_modifier $wrapped, before => @befores;
+	subroutine_modifier $modified, before => @befores;
 
 =item mkopt(input, moniker, require_unique, must_be)
 

@@ -3,11 +3,10 @@
 */
 #include "data-util.h"
 
-extern MGVTBL curried_vtbl;
-extern MGVTBL wrapped_vtbl;
+MGVTBL const curried_vtbl;
+MGVTBL const modified_vtbl;
 
-#define mg_find_by_vtbl(sv, vtbl) my_mg_find_by_vtbl(aTHX_ sv, vtbl)
-static MAGIC*
+MAGIC*
 my_mg_find_by_vtbl(pTHX_ SV* const sv, const MGVTBL* const vtbl){
 	MAGIC* mg = NULL;
 	for(mg = SvMAGIC(sv); mg; mg = mg->mg_moremagic){
@@ -146,9 +145,9 @@ my_call_av(pTHX_ AV* const subs, AV* const args, I32 const args_len){
 	}
 }
 
-XS(XS_Data__Util_wrapped){
+XS(XS_Data__Util_modified){
 	dVAR; dXSARGS;
-	MAGIC* const mg = mg_find_by_vtbl((SV*)cv, &wrapped_vtbl);
+	MAGIC* const mg = mg_find_by_vtbl((SV*)cv, &modified_vtbl);
 	assert(mg);
 
 	SP -= items;

@@ -1,6 +1,13 @@
 Revision history for Data-Util
 
-0.30
+0.31 Wed Dec  3 11:56:29 2008
+	- rewrite mro_compat.[hc] using MRO::Compat
+	- rename wrap_subroutine to modify_subroutine,
+		(wrap_subroutine has been deprecated)
+	- add benchmark/install_subr_bench.pl
+	- internal cleanup
+
+0.30 Sun Nov 30 17:18:46 2008
 	- fix wrapped subroutines to get correct arguments
 
 0.29_02 Sun Nov 30 14:22:47 2008

@@ -1,5 +1,9 @@
 /*
- *   mro_compat.h - provides mro_get_linear_isa() using DFS algorithm
+ *   mro_compat.h - provides mro functions for 5.8.x
+
+ 	AV*  mro_get_linear_isa(stash)
+ 	void mro_method_changed_in(stash)
+ 	UV   mro_get_pkg_gen(stash)
  */
 
 #define PERL_NO_GET_CONTEXT
@@ -14,13 +18,25 @@
 #endif
 
 #ifndef mro_get_linear_isa
-#define USE_MRO_COMPAT
+#define NEED_MRO_COMPAT
 
-#define mro_get_linear_isa(stash) my_mro_get_linear_isa_dfs(aTHX_ stash)
-AV* my_mro_get_linear_isa_dfs(pTHX_ HV* const stash);
+#define mro_get_linear_isa(stash) my_mro_get_linear_isa(aTHX_ stash)
+AV* my_mro_get_linear_isa(pTHX_ HV* const stash);
 
-#define mro_method_changed_in(statsh) my_mro_method_changed_in(aTHX_ stash)
-void my_mro_method_changed_in(pTHX_ HV* const stash);
+#define mro_method_changed_in(stash) ((void)PL_sub_generation++)
 
-#endif /* !mro_get_linear_isa */
+#ifndef mro_get_pkg_gen
+#define mro_get_pkg_gen(stash) (PL_sub_generation)
+#endif
 
+#else /* !mro_get_linear_isa */
+
+#ifndef mro_meta_init /* missing in 5.10.0 */
+#define mro_meta_init(stash) Perl_mro_meta_init(aTHX_ stash)
+#endif
+
+#ifndef mro_get_pkg_gen
+#define mro_get_pkg_gen(stash) (HvMROMETA(stash)->pkg_gen)
+#endif
+
+#endif /* mro_get_linear_isa */

@@ -12,8 +12,8 @@ typedef struct{
 START_MY_CXT;
 
 /* null magic virtual table to identify magic functions */
-MGVTBL curried_vtbl;
-MGVTBL wrapped_vtbl;
+extern MGVTBL const curried_vtbl;
+extern MGVTBL const modified_vtbl;
 
 typedef enum{
 	T_NOT_REF,
@@ -244,9 +244,9 @@ my_isa_lookup(pTHX_ HV* const stash, const char* klass_name){
 		return TRUE;
 	}
 	else{
-		AV*  const stash_linear_isa = mro_get_linear_isa(stash);
-		SV**       svp = AvARRAY(stash_linear_isa) + 1;   /* skip this class */
-		SV** const end = svp + AvFILLp(stash_linear_isa); /* start + 1 + last index */
+		AV*  const linearized_isa = mro_get_linear_isa(stash);
+		SV**       svp            = AvARRAY(linearized_isa) + 1;   /* skip this class */
+		SV** const end            = svp + AvFILLp(linearized_isa); /* start + 1 + last index */
 
 		while(svp != end){
 			if(strEQ(klass_name, my_canon_pkg(aTHX_ SvPVX(*svp)))){
@@ -284,6 +284,7 @@ my_instance_of(pTHX_ SV* const x, SV* const klass){
 		{
 			SV* retval;
 			dSP;
+
 			ENTER;
 			SAVETMPS;
 
@@ -688,6 +689,7 @@ CODE:
 	if( ((items-1) % 2) != 0 ){
 		my_croak(aTHX_ "Odd number of arguments for %s", GvNAME(CvGV(cv)));
 	}
+
 	for(i = 1; i < items; i += 2){
 		SV* const as = my_string(aTHX_ ST(i), "a subroutine name");
 		SV* code     = ST(i+1);
@@ -742,8 +744,8 @@ CODE:
 			if(cv_const_sv(code) && ckWARN(WARN_MISC)){
 				Perl_warner(aTHX_ packWARN(WARN_MISC), "Constant subroutine %s uninstalled", name);
 			}
-			SvREFCNT_dec(code);
 			GvCV(*gvp) = NULL;
+			SvREFCNT_dec(code);
 		}
 	}
 	mro_method_changed_in(stash);
@@ -822,11 +824,13 @@ OUTPUT:
 	RETVAL
 
 SV*
-wrap_subroutine(code, ...)
+modify_subroutine(code, ...)
 	CV* code
+ALIAS:
+	wrap_subroutine = 1
 PREINIT:
 	SV* original;
-	CV* wrapped;
+	CV* modified;
 	SV* current;
 	AV* before;
 	AV* around;
@@ -834,6 +838,10 @@ PREINIT:
 	AV* modifiers; /* (before, around, after, original, current) */
 	I32 i;
 CODE:
+	if(ix == 1 && ckWARN(WARN_DEPRECATED)){
+		Perl_warner(aTHX_ packWARN(WARN_DEPRECATED),
+			"wrap_subroutine() has been deprecated, use modify_subroutine() instead");
+	}
 	if( ((items - 1) % 2) != 0 ){
 		my_croak(aTHX_ "Odd number of arguments for %s", GvNAME(CvGV(cv)));
 	}
@@ -892,11 +900,11 @@ CODE:
 	av_store(modifiers, M_AROUND, SvREFCNT_inc_simple_NN(around));
 	av_store(modifiers, M_AFTER,  SvREFCNT_inc_simple_NN(after));
 
-	wrapped = newXS(NULL /* anonymous */, XS_Data__Util_wrapped, __FILE__);
-	sv_magicext((SV*)wrapped, (SV*)modifiers, PERL_MAGIC_ext, &wrapped_vtbl, NULL, 0);
+	modified = newXS(NULL /* anonymous */, XS_Data__Util_modified, __FILE__);
+	sv_magicext((SV*)modified, (SV*)modifiers, PERL_MAGIC_ext, &modified_vtbl, NULL, 0);
 	SvREFCNT_dec((SV*)modifiers); /* refcnt++ in sv_magicext() */
 
-	RETVAL = newRV_noinc((SV*)wrapped);
+	RETVAL = newRV_noinc((SV*)modified);
 OUTPUT:
 	RETVAL
 
@@ -915,14 +923,15 @@ PREINIT:
 	SV* property;
 	const char* property_pv;
 PPCODE:
-	mg = mg_find((SV*)code, PERL_MAGIC_ext);
-	modifiers = (AV*)(mg && mg->mg_virtual == &wrapped_vtbl ? mg->mg_obj : NULL);
+	mg = mg_find_by_vtbl((SV*)code, &modified_vtbl);
+	modifiers = (AV*)(mg ? mg->mg_obj : NULL);
+
 	if(items == 1){ /* check only */
 		ST(0) = boolSV(modifiers);
 		XSRETURN(1);
 	}
 	if(!modifiers){
-		my_fail(aTHX_ "a wrapped subroutine", ST(0) /* ref to code */);
+		my_fail(aTHX_ "a modified subroutine", ST(0) /* ref to code */);
 	}
 
 	property = my_string(aTHX_ ST(1), "a modifier property");

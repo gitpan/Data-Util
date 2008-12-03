@@ -4,4 +4,5 @@ BEGIN {
 	use_ok( 'Data::Util' );
 }
 
-diag( "Testing Data::Util $Data::Util::VERSION" );
+my $backend = $Data::Util::TESTING_PERL_ONLY ? 'PurePerl' : 'XS';
+diag( "Testing Data::Util $Data::Util::VERSION ($backend)" );

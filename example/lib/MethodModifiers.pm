@@ -1,4 +1,4 @@
-package # it's an example for wrap_subroutine()
+package # it's an example for modify_subroutine()
 	MethodModifiers;
 
 use strict;
@@ -11,7 +11,7 @@ our @EXPORT_OK = (@EXPORT, qw(add_method_modifier));
 our %EXPORT_TAGS = (all => \@EXPORT_OK);
 
 use Data::Util qw(
-	wrap_subroutine
+	modify_subroutine
 	subroutine_modifier
 	install_subroutine
 	get_code_info
@@ -32,7 +32,7 @@ sub add_method_modifier{
 			or _croak(qq{The method '$method' is not found in the inheritance hierarchy for class $class});
 
 		if(!subroutine_modifier($entity) or (get_code_info($entity))[0] ne $class){
-			$entity = wrap_subroutine($entity);
+			$entity = modify_subroutine($entity);
 
 			no warnings 'redefine';
 			install_subroutine($class, $method => $entity);
@@ -89,7 +89,7 @@ MethodModifiers - Provides Moose-like method modifiers
 This module is an implementation of C<Class::Method::Modifiers> that
 provides C<Moose>-like method modifiers.
 
-This is just a front-end of C<Data::Util::wrap_subroutine()> and
+This is just a front-end of C<Data::Util::modify_subroutine()> and
 C<Data::Util::subroutine_modifier()>
 
 See L<Data::Util> for details.

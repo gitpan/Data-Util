@@ -22,7 +22,7 @@ use Carp qw(cluck);
 		$f->(@_);
 	};
 }
-my $c = wrap_subroutine(
+my $c = modify_subroutine(
 	\&foo,
 	before => [sub { print ":before\n" } ],
 	around => [\&bar, \&baz],
