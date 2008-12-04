@@ -196,6 +196,8 @@ sub uninstall_subroutine {
 	_is_string($package) or _fail('a package name', $package);
 	my $stash = get_stash($package) or return 0;
 
+	require B;
+
 	foreach my $name(@_){
 		_is_string($name)    or _fail('a subrotine name', $name);
 
@@ -214,20 +216,19 @@ sub uninstall_subroutine {
 			next;
 		}
 
-		my $proto = prototype($code);
-		if(defined($proto) && $proto eq '' && get_code_info($code) eq 'constant::__ANON__'){
+		if(B::svref_2object($code)->CONST){
 			warnings::warnif(misc => "Constant subroutine $name uninstalled");
 		}
 
-		local *tmp;
+		delete $stash->{$name};
+
+		my $newglob = do{ no strict 'refs'; \*{$package . '::' . $name} }; # vivify
+		delete $stash->{$glob};
 
 		# copy all the slot except for CODE
 		foreach my $slot( qw(SCALAR ARRAY HASH IO FORMAT) ){
-			*tmp = *{$glob}{$slot} if defined *{$glob}{$slot};
+			*{$newglob} = *{$glob}{$slot} if defined *{$glob}{$slot};
 		}
-
-		*{$glob} = *tmp; # copy GvGP
-		$stash->{$name} = $glob;
 	}
 
 	return;

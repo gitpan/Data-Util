@@ -3,8 +3,8 @@
 */
 #include "data-util.h"
 
-MGVTBL const curried_vtbl;
-MGVTBL const modified_vtbl;
+MGVTBL curried_vtbl;
+MGVTBL modified_vtbl;
 
 MAGIC*
 my_mg_find_by_vtbl(pTHX_ SV* const sv, const MGVTBL* const vtbl){

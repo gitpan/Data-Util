@@ -59,6 +59,8 @@ t/13_optlist.t
 t/14_uninst_subr.t
 t/15_curry.t
 t/16_modify.t
+t/17_nsclean.t
+t/lib/NSClean.pm
 t/pp01_refs.t
 t/pp02_inst.t
 t/pp03_gen.t

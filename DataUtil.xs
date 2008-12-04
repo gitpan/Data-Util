@@ -2,6 +2,8 @@
 
 #include "data-util.h"
 
+#define GvSetSV(gv, sv) SvSetMagicSV((SV*)gv, sv_2mortal(newRV_inc((SV*)sv)))
+
 #define MY_CXT_KEY "Data::Util::_guts" XS_VERSION
 
 typedef struct{
@@ -12,8 +14,8 @@ typedef struct{
 START_MY_CXT;
 
 /* null magic virtual table to identify magic functions */
-extern MGVTBL const curried_vtbl;
-extern MGVTBL const modified_vtbl;
+extern MGVTBL curried_vtbl;
+extern MGVTBL modified_vtbl;
 
 typedef enum{
 	T_NOT_REF,
@@ -728,24 +730,38 @@ CODE:
 		STRLEN namelen;
 		const char* const name = SvPV_const(namesv, namelen);
 		GV** const gvp = (GV**)hv_fetch(stash, name, namelen, FALSE);
+		GV* gv;
 		CV* code;
 
 		if(!gvp) continue;
 
-		if(!isGV(*gvp)){ /* a subroutine stub or special constant*/
-			if(SvROK((SV*)*gvp) && ckWARN(WARN_MISC)){
+		gv = *gvp;
+
+		if(!isGV(gv)){ /* a subroutine stub or special constant*/
+			if(SvROK((SV*)gv) && ckWARN(WARN_MISC)){
 				Perl_warner(aTHX_ packWARN(WARN_MISC), "Constant subroutine %s uninstalled", name);
 			}
 			hv_delete(stash, name, namelen, G_DISCARD);
 			continue;
 		}
 
-		if((code = GvCVu(*gvp))){
-			if(cv_const_sv(code) && ckWARN(WARN_MISC)){
+		if((code = GvCVu(gv))){
+			GV* newgv;
+			if(CvCONST(code) && ckWARN(WARN_MISC)){
 				Perl_warner(aTHX_ packWARN(WARN_MISC), "Constant subroutine %s uninstalled", name);
 			}
-			GvCV(*gvp) = NULL;
-			SvREFCNT_dec(code);
+
+			hv_delete(stash, name, namelen, G_DISCARD);
+
+			newgv = (GV*)*hv_fetch(stash, name, namelen, TRUE);
+			gv_init(newgv, stash, name, namelen, GV_ADDMULTI); /* vivify */
+
+			/* restore all slots other than GvCV */
+			if(GvSV(gv))   GvSetSV(newgv, GvSV(gv));
+			if(GvAV(gv))   GvSetSV(newgv, GvAV(gv));
+			if(GvHV(gv))   GvSetSV(newgv, GvHV(gv));
+			if(GvIO(gv))   GvSetSV(newgv, GvIOp(gv));
+			if(GvFORM(gv)) GvSetSV(newgv, GvFORM(gv));
 		}
 	}
 	mro_method_changed_in(stash);

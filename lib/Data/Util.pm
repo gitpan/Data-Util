@@ -4,7 +4,7 @@ use 5.008_001;
 use strict;
 #use warnings;
 
-our $VERSION = '0.31';
+our $VERSION = '0.32';
 
 use Exporter qw(import);
 
@@ -70,7 +70,7 @@ Data::Util - A selection of utilities for data and data types
 
 =head1 VERSION
 
-This document describes Data::Util version 0.31
+This document describes Data::Util version 0.32
 
 =head1 SYNOPSIS
 

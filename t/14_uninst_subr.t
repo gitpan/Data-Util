@@ -21,19 +21,21 @@ sub foo(){ (42, 43) }
 my $before = \*foo;
 
 our $foo = 10;
+our @foo = (1, 2, 3);
 
 ok defined(&foo), 'before uninstalled';
 ok __PACKAGE__->can('foo'), 'can';
 
 uninstall_subroutine(__PACKAGE__, 'foo');
 
-my $after = do{ no strict 'refs'; \*{'foo'} };
 
-ok !defined(&foo), 'after uninstalled';
 ok !__PACKAGE__->can('foo'), 'cannot';
 
 is $foo, 10, 'remains other slots';
-is $before, $after, 'compare globs directly';
+is_deeply \@foo, [1, 2, 3];
+
+my $after = do{ no strict 'refs'; \*{'foo'} };
+is *{$before}, *{$after}, 'compare globs directly';
 
 uninstall_subroutine(__PACKAGE__, 'foo'); # ok
 

@@ -1,6 +1,38 @@
 /*
- *   mro_compat.c - provides mro functions for 5.8.x
+----------------------------------------------------------------------------
+
+    mro_compat.h - Provides mro functions for XS
+
+    Automatically created by Devel::MRO/0.01_001, running under perl 5.10.0
+
+    Copyright (c) 2008, Goro Fuji <gfuji(at)cpan.org>.
+
+    This program is free software; you can redistribute it and/or
+    modify it under the same terms as Perl itself.
+
+----------------------------------------------------------------------------
+
+Privides:
+	AV*  mro_get_linear_isa(HV* stash)
+	UV   mro_get_pkg_gen(HV* stash)
+	void mro_method_changed_in(HV* stash)
+
+    See "perldoc mro" for details.
+
+
  */
+
+#define PERL_NO_GET_CONTEXT
+#include <EXTERN.h>
+#include <perl.h>
+#include <XSUB.h>
+
+#include "ppport.h"
+
+#ifndef GvSVn
+#define GvSVn(x) GvSV(x)
+#endif
+
 #include "mro_compat.h"
 
 #ifdef NEED_MRO_COMPAT
