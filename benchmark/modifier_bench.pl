@@ -22,7 +22,7 @@ sub around{
 {
 	package DUMM;
 	use parent -norequire => qw(Base);
-	use MethodModifiers;
+	use Method::Modifiers;
 
 	before f => sub{ $i++ };
 	around g => \&main::around;

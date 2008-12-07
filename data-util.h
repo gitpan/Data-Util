@@ -20,7 +20,7 @@
 #define SvRXOK(sv) ((bool)(SvROK(sv) && (SvTYPE(SvRV(sv)) == SVt_PVMG) && mg_find(SvRV(sv), PERL_MAGIC_qr)))
 #endif
 
-#define is_string(x) (SvOK(x) && !SvROK(x))
+#define is_string(x) (SvOK(x) && !SvROK(x) && (my_SvPOK(x) ? SvCUR(x) > 0 : TRUE))
 
 #define PUSHav(av, start, len) STMT_START{        \
 		SV** const ary = AvARRAY(av);     \

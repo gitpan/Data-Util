@@ -4,12 +4,13 @@ use 5.008_001;
 use strict;
 #use warnings;
 
-our $VERSION = '0.32';
+our $VERSION = '0.40';
 
 use Exporter qw(import);
 
 our $TESTING_PERL_ONLY;
-$TESTING_PERL_ONLY = $ENV{DATA_UTIL_PUREPERL} unless defined $TESTING_PERL_ONLY;
+$TESTING_PERL_ONLY = $ENV{DATA_UTIL_PUREPERL}
+	unless defined $TESTING_PERL_ONLY;
 
 unless($TESTING_PERL_ONLY){
 	local $@;
@@ -26,6 +27,7 @@ require q{Data/Util/PurePerl.pm} # not to create the namespace
 our @EXPORT_OK = qw(
 	is_scalar_ref is_array_ref is_hash_ref is_code_ref is_glob_ref is_regex_ref
 	is_instance is_invocant
+	is_value is_string is_number is_integer
 
 	scalar_ref array_ref hash_ref code_ref glob_ref regex_ref
 	instance invocant
@@ -53,11 +55,12 @@ our %EXPORT_TAGS = (
 
 	check   => [qw(
 		is_scalar_ref is_array_ref is_hash_ref is_code_ref
-		is_glob_ref is_regex_ref is_instance
+		is_glob_ref is_regex_ref is_instance is_invocant
+		is_value is_string is_number is_integer
 	)],
 	validate  => [qw(
 		scalar_ref array_ref hash_ref code_ref
-		glob_ref regex_ref instance
+		glob_ref regex_ref instance invocant
 	)],
 );
 
@@ -70,7 +73,7 @@ Data::Util - A selection of utilities for data and data types
 
 =head1 VERSION
 
-This document describes Data::Util version 0.32
+This document describes Data::Util version 0.40
 
 =head1 SYNOPSIS
 
@@ -182,6 +185,32 @@ For an invocant, i.e. a blessed reference or existent package name.
 
 If I<value> is a valid class name but does not exist, it will return false.
 
+=item is_value(value)
+
+Checks whether I<value> is a primitive value, i.e. a defined, non-ref value.
+
+This function has no counterpart for validation.
+
+=item is_string(value)
+
+Checks whether I<value> is a string with non-zero-length contents,
+equivatent to C<< is_value($value) && length($value) > 0 >>.
+
+This function has no counterpart for validation.
+
+=item is_number(value)
+
+Checks whether I<value> is a number, accepting C<"0 but true">.
+It is similar to C<Scalar::Util::looks_like_number()> but refuses C<"Inf"> and C<"NaN">.
+
+This function has no counterpart for validation.
+
+=item is_integer(value)
+
+Checks whether I<value> is an integer, accepting C<"0 but true">.
+
+This function has no counterpart for validation.
+
 =back
 
 =head2 Validating functions
@@ -257,7 +286,9 @@ Generates an anonymous scalar reference to C<undef>.
 
 =item anon_scalar(value)
 
-Generates an anonymous scalar reference to I<value>.
+Generates an anonymous scalar reference to the copy of I<value>.
+
+It is equivalent to C<< do{ my $tmp = $value; \$tmp; } >>.
 
 =item neat(value)
 
@@ -293,6 +324,10 @@ Uninstalls I<names> from I<package>.
 
 It is similar to C<Sub::Delete::delete_sub()>, but uninstall multiple
 subroutines at a time.
+
+=item uninstall_subroutine(package, name => subr [, ...])
+
+Uninstalls I<name> from I<package> if the entity of I<name> is really I<subr>.
 
 =item get_code_info(subr)
 
@@ -370,6 +405,9 @@ For example:
 
 Perl 5.8.1 or later.
 
+If you have a C compiler, you can use the XS backend,
+but the Pure Perl backend is also available if you have no C compiler.
+
 =head1 BUGS AND LIMITATIONS
 
 No bugs have been reported.
@@ -400,7 +438,7 @@ L<Data::OptList>.
 
 =head1 AUTHOR
 
-Goro Fuji E<lt>gfuji(at)cpan.orgE<gt>
+Goro Fuji(gfx) E<lt>gfuji(at)cpan.orgE<gt>.
 
 =head1 LICENSE AND COPYRIGHT
 

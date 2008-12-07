@@ -11,7 +11,7 @@ BEGIN{
 		plan skip_all => 'For XS only';
 	}
 	else{
-		plan tests => 27;
+		plan tests => 26;
 	}
 }
 
@@ -68,7 +68,6 @@ ok is_instance($o, 'main::main::Foo');
 ok is_instance($o, '::main::main::UNIVERSAL');
 ok!is_instance($o, '::::Foo');
 ok!is_instance($o, 'Fooo');
-ok!is_instance($o, '');
 ok!is_instance($o, 'FoO');
 ok!is_instance($o, 'foo');
 ok!is_instance($o, 'mai');

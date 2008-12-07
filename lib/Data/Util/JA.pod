@@ -7,7 +7,7 @@ Data::Util::JA - データとデータ型のためのユーティリティ集
 
 =head1 VERSION
 
-This document describes Data::Util version 0.32
+This document describes Data::Util version 0.40
 
 =head1 SYNOPSIS
 
@@ -129,6 +129,41 @@ C<< Scalar::Util::blessed($value) && $value->isa($class) >>というコードと
 
 I<class>が未定義値またはリファレンスであれば致命的エラーとなります。
 
+=item is_invocant(value)
+
+I<value>に対してメソッドを起動できるかどうかをチェックします。
+
+=item is_value(value)
+
+I<value>がプリミティブ値かどうかをチェックします。すなわち，定義済みであり，
+リファレンスでなければ真を返します。
+
+この関数には検証を行う対応関数がありません。
+
+=item is_string(value)
+
+I<value>が1文字以上の内容を持つ文字列かどうかをチェックします。
+
+C<< is_value($value) && length($value) > 0 >>と同じです。
+
+この関数には検証を行う対応関数がありません。
+
+=item is_number(value)
+
+I<value>が数値かどうかをチェックします。
+また，C<"0 but true">は数値として扱われます。
+C<Scalar::Util::looks_like_number()>と異なり，
+C<"Inf">やC<"NaN">は数値として扱われません。
+
+この関数には検証を行う対応関数がありません。
+
+=item is_integer(value)
+
+I<value>が整数かどうかをチェックします。
+また，C<"0 but true">は整数として扱われます。
+
+この関数には検証を行う対応関数がありません。
+
 =back
 
 
@@ -173,6 +208,13 @@ I<class>のインスタンスかどうかの検証を行います。
 
 I<class>が未定義値またはリファレンスであれば致命的エラーとなります。
 
+=item invocant(value)
+
+I<value>に対してメソッドを起動できるかどうかの検証を行います。
+
+I<value>がクラス名である場合，そのクラス名を正規化した文字列を返します。
+すなわち，C<"::Foo">やC<"main::Foo">を与えるとC<"Foo">を返します。
+
 =back
 
 =head2 Micellaneous utilities
@@ -187,7 +229,9 @@ C<undef>を参照する匿名スカラーリファレンスを生成します。
 
 =item anon_scalar(value)
 
-I<value>を参照する匿名スカラーリファレンスを生成します。
+I<value>のコピーを参照する匿名スカラーリファレンスを生成します。
+
+これはC<< do{ my $tmp = $value; \$value; } >>というコードと等価です。
 
 =item neat(value)
 
@@ -200,7 +244,7 @@ C<<do{ defined($value) ? qq{"$value"} : 'undef' }>>を置き換える機能
 スタッシュ B<stash> と呼ばれるI<package>のシンボルテーブルハッシュが
 存在すれば，そのスタッシュを返します。
 
-C<< do{ no strict 'refs'; \%{$package.'::'} } >>というコードに似ていますが，
+これはC<< do{ no strict 'refs'; \%{$package.'::'} } >>というコードに似ていますが，
 I<package>が存在しなければそのスタッシュは生成せずC<undef>を返します。
 なお，I<package>が未定義値またはリファレンスのときもC<undef>を返します。
 
@@ -234,6 +278,7 @@ C<< undef &subr >>がC<&subr>を未定義にして型グロブのコードスロ
 
 これはC<Sub::Delete::delete_sub()>に似ていますが，複数のサブルーチンを一度に
 削除できます。
+
 
 =item get_code_info(subr)
 

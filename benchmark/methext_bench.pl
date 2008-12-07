@@ -27,7 +27,7 @@ sub around{
 {
 	package X;
 	use parent -norequire => qw(Base);
-	use MethodModifiers;
+	use Method::Modifiers;
 
 	before f => sub{ };
 	around g => \&main::around;

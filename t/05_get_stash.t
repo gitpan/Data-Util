@@ -4,7 +4,7 @@
 
 use strict;
 use warnings FATAL => 'all';
-use Test::More tests => 34;
+use Test::More tests => 37;
 use Test::Exception;
 
 use Tie::Scalar;
@@ -26,7 +26,7 @@ foreach my $pkg( qw(main strict Data::Util ::main::Data::Util)){
 	ok invocant($pkg)->isa($pkg),    'invocant';
 }
 
-foreach my $pkg('not_exists', 1, undef, [], *ok, ){
+foreach my $pkg('not_exists', '', 1, undef, [], *ok, ){
 	ok !defined(get_stash $pkg), 'get_stash for ' . neat($pkg) . '(invalid value)';
 	ok !is_invocant($pkg), 'is_invocant';
 	throws_ok{
@@ -42,6 +42,6 @@ ok invocant($ts);
 ok is_invocant($x), 'is_invocant() for an object';
 is invocant($x), $x, 'invocant() for an object';
 
-is invocant('::Data::Util'), 'Data::Util';
-is invocant(''),             'main';
+is invocant('::Data::Util'),     'Data::Util';
+is invocant('main::Data::Util'), 'Data::Util';
 

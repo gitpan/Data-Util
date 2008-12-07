@@ -1,8 +1,10 @@
 package # it's an example for modify_subroutine()
-	MethodModifiers;
+	Method::Modifiers;
 
 use strict;
 use warnings;
+
+our $VERSION = '1.00';
 
 use Exporter qw(import);
 
@@ -10,12 +12,7 @@ our @EXPORT    = qw(before around after);
 our @EXPORT_OK = (@EXPORT, qw(add_method_modifier));
 our %EXPORT_TAGS = (all => \@EXPORT_OK);
 
-use Data::Util qw(
-	modify_subroutine
-	subroutine_modifier
-	install_subroutine
-	get_code_info
-);
+use Data::Util ();
 
 sub _croak{
 	require Data::Util::Error;
@@ -31,14 +28,14 @@ sub add_method_modifier{
 		my $entity = $class->can($method)
 			or _croak(qq{The method '$method' is not found in the inheritance hierarchy for class $class});
 
-		if(!subroutine_modifier($entity) or (get_code_info($entity))[0] ne $class){
-			$entity = modify_subroutine($entity);
+		if(!subroutine_modifier($entity) or (Data::Util::get_code_info($entity))[0] ne $class){
+			$entity = Data::Util::modify_subroutine($entity);
 
 			no warnings 'redefine';
-			install_subroutine($class, $method => $entity);
+			Data::Util::install_subroutine($class, $method => $entity);
 		}
 
-		subroutine_modifier($entity, $type => $code);
+		Data::Util::subroutine_modifier($entity, $type => $code);
 	}
 	return;
 }

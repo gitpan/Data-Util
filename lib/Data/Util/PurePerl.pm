@@ -28,10 +28,6 @@ sub _overloaded{
 		&& overload::Method($_[0], $_[1]);
 }
 
-sub _is_string{
-	return defined($_[0]) && !ref($_[0]);
-}
-
 sub is_scalar_ref{
 	return ref($_[0]) eq 'SCALAR' || ref($_[0]) eq 'REF' || _overloaded($_[0], '${}');
 }
@@ -53,7 +49,7 @@ sub is_regex_ref{
 sub is_instance{
 	my($obj, $class) = @_;
 	_fail('a class name', $class)
-		unless _is_string($class);
+		unless is_string($class);
 
 	return Scalar::Util::blessed($obj) && $obj->isa($class);
 }
@@ -97,7 +93,7 @@ sub instance{
 	my($obj, $class) = @_;
 
 	_fail('a class name', $class)
-		unless _is_string($class);
+		unless is_string($class);
 
 	return Scalar::Util::blessed($obj) && $obj->isa($class)
 		? $obj : _fail("an instance of $class", $obj);
@@ -120,9 +116,46 @@ sub invocant{
 	_fail('an invocant', $x);
 }
 
+sub is_value{
+	return defined($_[0]) && !ref($_[0]) && ref(\$_[0]) ne 'GLOB';
+}
+sub is_string{
+	no warnings 'uninitialized';
+	return !ref($_[0]) && ref(\$_[0]) ne 'GLOB' && length($_[0]) > 0;
+}
+
+sub is_number{
+	return 0 if !defined($_[0]) || ref($_[0]);
+
+	return 1 if $_[0] eq '0 but true';
+
+	return $_[0] =~ m{
+		\A \s*
+			[+-]?
+			(?= \d | \.\d)
+			\d*
+			(\.\d*)?
+			(?: [Ee] (?: [+-]? \d+) )?
+		\s* \z
+	}xms;
+}
+
+sub is_integer{
+	return 0 if !defined($_[0]) || ref($_[0]);
+
+	return 1 if $_[0] eq '0 but true';
+
+	return $_[0] =~ m{
+		\A \s*
+			[+-]?
+			\d+
+		\s* \z
+	}xms;
+}
+
 sub get_stash{
 	my($package) = @_;
-	return undef unless _is_string($package);
+	return undef unless is_string($package);
 
 	$package =~ s/^:://;
 
@@ -167,14 +200,14 @@ sub install_subroutine{
 	_croak('Usage: install_subroutine(package, name => code, ...)') unless @_;
 
 	my $into = shift;
-	_is_string($into)  or _fail('a package name', $into);
+	is_string($into)  or _fail('a package name', $into);
 
 	if((@_ % 2) != 0){
 		_croak('Odd number of arguments for install_subroutine');
 	}
 
 	while(my($as, $code) = splice @_, 0, 2){
-		_is_string($as)    or _fail('a subroutine name', $as);
+		is_string($as)    or _fail('a subroutine name', $as);
 		is_code_ref($code) or _fail('a CODE reference', $code);
 
 		my $slot = do{ no strict 'refs'; \*{ $into . '::' . $as } };
@@ -193,15 +226,19 @@ sub uninstall_subroutine {
 
 	my $package = shift;
 
-	_is_string($package) or _fail('a package name', $package);
+	is_string($package) or _fail('a package name', $package);
 	my $stash = get_stash($package) or return 0;
 
 	require B;
 
-	foreach my $name(@_){
-		_is_string($name)    or _fail('a subrotine name', $name);
+	for(my $i = 0; $i < @_; $i++){
+		my $name = $_[$i];
+		is_string($name) or _fail('a subroutine name', $name);
+
+		my $specified_code = is_code_ref($_[$i+1]) ? $_[++$i] : undef;
 
 		my $glob = $stash->{$name};
+
 
 		if(ref(\$glob) ne 'GLOB'){
 			if(ref $glob){
@@ -213,6 +250,10 @@ sub uninstall_subroutine {
 
 		my $code = *{$glob}{CODE};
 		if(not defined $code){
+			next;
+		}
+
+		if(defined $specified_code && $specified_code != $code){
 			next;
 		}
 
@@ -386,7 +427,7 @@ END_CXT
 		}
 
 		my($name, @subs) = @_;
-		(_is_string($name) && exists $valid_modifiers{$name}) or _fail('a modifier property', $name);
+		(is_string($name) && exists $valid_modifiers{$name}) or _fail('a modifier property', $name);
 
 
 		if($name eq 'original'){
@@ -456,7 +497,7 @@ sub mkopt{
 	my $vh = is_hash_ref($must_be);
 	my $validator = $must_be;
 
-	if(defined($validator) && (!$vh && !is_array_ref($validator) && !_is_string($validator))){
+	if(defined($validator) && (!$vh && !is_array_ref($validator) && !is_string($validator))){
 		_fail('a type name, or ARRAY or HASH reference', $validator);
 	}
 

@@ -44,15 +44,20 @@ is scalar(get_code_info(Derived->can('f'))), 'Base::f', 'uninstall subroutine st
 is(Derived->f(), 42);
 
 sub f1{}
-sub f2{}
+# f2 does not exist
 sub f3{}
+sub f4{}
 
-uninstall_subroutine(__PACKAGE__, qw(f1 f2 f3 f4));
+uninstall_subroutine(__PACKAGE__, 
+	qw(f1 f2),
+	f3 => \&f3,
+	f4 => \&f1,
+);
 
 ok !__PACKAGE__->can('f1');
 ok !__PACKAGE__->can('f2');
-ok !__PACKAGE__->can('f3');
-ok !__PACKAGE__->can('f4');
+ok !__PACKAGE__->can('f3'), 'specify a matched subr (uninstalled)';
+ok  __PACKAGE__->can('f4'), 'specify an unmatched subr (not uninstalled)';
 
 
 SKIP:{
