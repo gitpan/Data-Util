@@ -7,6 +7,9 @@
 
 #define MY_CXT_KEY "Data::Util::_guts" XS_VERSION
 
+#define NOT_REACHED ((void)"PANIC: NOT REACHED", 0)
+#define NotReached assert(NOT_REACHED)
+
 typedef struct{
 	GV* universal_isa;
 
@@ -73,17 +76,17 @@ my_croak(pTHX_ const char* const fmt, ...){
 	message = vnewSVpvf(fmt, &args);
 	va_end(args);
 
-	sv_2mortal(message);
-
 	PUSHMARK(SP);
-	XPUSHs(message);
+	mXPUSHs(message);
 	PUTBACK;
 
 	call_sv((SV*)MY_CXT.croak, G_VOID);
 
-	/* not reached */
+	NotReached;
+	/*
 	FREETMPS;
 	LEAVE;
+	*/
 }
 
 static void
@@ -119,11 +122,69 @@ my_has_amagic_converter(pTHX_ SV* const sv, const my_type_t t){
 		o = to_gv_amg;
 		break;
 	default:
-		/* not reached */
-		return FALSE;
+		NotReached;
 	}
 
 	return amt->table[o] ? TRUE : FALSE;
+}
+
+static bool
+my_check_type_primitive(pTHX_ SV* const sv, const my_type_t t){
+	if(SvROK(sv) || !SvOK(sv) || isGV(sv)){
+		return FALSE;
+	}
+	switch(t){
+	case T_INT:
+		if(!my_SvPOK(sv)){
+			if(SvIOKp(sv)){
+				return TRUE;
+			}
+			else if(SvNOKp(sv)){
+				NV const nv = SvNVX(sv);
+				return (nv == (NV)(IV)nv || nv == (NV)(UV)nv) ? TRUE : FALSE;
+			}
+		}
+		/* fall through */
+	case T_NUM:
+		if(my_SvPOK(sv)){
+			STRLEN const len     = SvCUR(sv);
+			const char* const pv = SvPVX(sv);
+			int const num_type = grok_number(pv, len, NULL);
+
+			if(num_type && !strEQ(pv, "0 but true")){
+				if(t == T_INT){
+					return (num_type & IS_NUMBER_NOT_INT) ? FALSE : TRUE;
+				}
+				else{
+					return (num_type & (IS_NUMBER_INFINITY | IS_NUMBER_NAN)) ? FALSE : TRUE;
+				}
+			}
+			else{
+				return FALSE;
+			}
+		}
+		else if(SvIOKp(sv)){
+			return TRUE;
+		}
+		else if(SvNOKp(sv)){
+			NV const nv = SvNVX(sv);
+			return (nv == NV_INF || nv == -NV_INF || Perl_isnan(nv)) ? FALSE : TRUE;
+		}
+		else{
+			NotReached;
+		}
+
+	case T_STR:
+		if(my_SvPOK(sv)){
+			return SvCUR(sv) > 0 ? TRUE : FALSE;
+		}
+		/* fall throught */
+
+	default:
+		NOOP;
+	}
+
+	return TRUE; /* T_VALUE */
 }
 
 #define check_type(sv, t) my_check_type(aTHX_ sv, t)
@@ -645,16 +706,18 @@ CODE:
 	}
 	else{ /* invocant() */
 		if(result){ /* XXX: do{ package ::Foo; ::Foo->something; } causes an fatal error */
-			dXSTARG;
-			sv_setsv(TARG, x); /* copy the pv and flags */
-			sv_setpv(TARG, my_canon_pkg(aTHX_ SvPV_nolen_const(x)));
-			ST(0) = TARG;
+			if(!SvROK(x)){
+				dXSTARG;
+				sv_setsv(TARG, x); /* copy the pv and flags */
+				sv_setpv(TARG, my_canon_pkg(aTHX_ SvPV_nolen_const(x)));
+				ST(0) = TARG;
+			}
 			XSRETURN(1);
 		}
 		my_fail(aTHX_ "an invocant", x);
 	}
 
-bool
+void
 is_value(x)
 	SV* x
 ALIAS:
@@ -664,66 +727,19 @@ ALIAS:
 	is_integer = T_INT
 CODE:
 	SvGETMAGIC(x);
-	if(!(SvOK(x) && !SvROK(x) && !isGV(x))){
-		XSRETURN_NO;
-	}
-
-	switch(ix){
-	case T_INT:
-		if(SvIOK(x)){
-			RETVAL = TRUE;
-			break;
-		}
-		else if(my_SvNIOK(x)){
-			RETVAL = (SvNV(x) == (NV)SvIV(x) || SvNV(x) == (NV)SvUV(x)) ? TRUE : FALSE;
-			break;
-		}
-		/* fall through */
-	case T_NUM:
-		if(my_SvNIOK(x)){
-			RETVAL = TRUE;
-		}
-		else{
-			STRLEN const len     = SvCUR(x);
-			const char* const pv = SvPVX(x);
-			UV uv;
-			int const num_type = grok_number(pv, len, &uv);
-
-			if(num_type){
-				if(ix == T_INT){
-					RETVAL = (num_type & IS_NUMBER_NOT_INT) ? FALSE : TRUE;
-				}
-				else{
-					RETVAL = (num_type & (IS_NUMBER_INFINITY | IS_NUMBER_NAN)) ? FALSE : TRUE;
-				}
-			}
-			else{
-				RETVAL = FALSE;
-			}
-		}
-		break;
-
-	case T_STR:
-		if(my_SvPOK(x)){
-			RETVAL = SvCUR(x) > 0 ? TRUE : FALSE;
-			break;
-		}
-		/* fall throught */
-
-	default: /* T_VALUE */
-		RETVAL = TRUE;
-		break;
-	}
-OUTPUT:
-	RETVAL
+	ST(0) = boolSV(my_check_type_primitive(aTHX_ x, (my_type_t)ix));
+	XSRETURN(1);
 
 HV*
-get_stash(package_name)
-	SV* package_name
+get_stash(invocant)
+	SV* invocant
 CODE:
-	SvGETMAGIC(package_name);
-	if(is_string(package_name)){
-		RETVAL = gv_stashsv(package_name, FALSE);
+	SvGETMAGIC(invocant);
+	if(SvROK(invocant) && SvOBJECT(SvRV(invocant))){
+		RETVAL = SvSTASH(SvRV(invocant));
+	}
+	else if(is_string(invocant)){
+		RETVAL = gv_stashsv(invocant, FALSE);
 	}
 	else{
 		RETVAL = NULL;

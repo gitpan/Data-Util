@@ -10,6 +10,7 @@ benchmark/methext_bench.pl
 benchmark/mkopt_bench.pl
 benchmark/modifier_bench.pl
 benchmark/modify_bench.pl
+benchmark/number_bench.pl
 benchmark/ref_bench.pl
 c99portability.h
 Changes

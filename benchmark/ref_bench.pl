@@ -11,7 +11,7 @@ use Common;
 use Params::Util qw(_ARRAY0);
 use Data::Util qw(:all);
 
-signeture 'Data::Util' => \&is_array, 'Params::Util' => \&_ARRAY0;
+signeture 'Data::Util' => \&is_array_ref, 'Params::Util' => \&_ARRAY0;
 
 print "Benchmark: Params::Util::_ARRAY0() vs. Data::Util::is_array() vs. ref()\n";
 

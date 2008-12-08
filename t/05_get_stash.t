@@ -4,11 +4,12 @@
 
 use strict;
 use warnings FATAL => 'all';
-use Test::More tests => 37;
+use Test::More tests => 40;
 use Test::Exception;
 
 use Tie::Scalar;
 
+use Scalar::Util qw(blessed);
 use Data::Util qw(:all);
 
 #diag 'Testing ', $INC{'Data/Util/PurePerl.pm'} ? 'PurePerl' : 'XS';
@@ -17,21 +18,25 @@ sub get_stash_pp{
 	my($pkg) = @_;
 	no strict 'refs';
 
+	if(blessed $pkg){
+		$pkg = ref $pkg;
+	}
+
 	return \%{$pkg . '::'};
 }
 
-foreach my $pkg( qw(main strict Data::Util ::main::Data::Util)){
-	is get_stash($pkg), get_stash_pp($pkg), "get_stash for $pkg";
-	ok is_invocant($pkg), 'is_invocant';
-	ok invocant($pkg)->isa($pkg),    'invocant';
+foreach my $pkg( qw(main strict Data::Util ::main::Data::Util), bless{}, 'Foo'){
+	is get_stash($pkg), get_stash_pp($pkg), sprintf 'get_stash(%s)', neat $pkg;
+	ok is_invocant($pkg), 'is_invocant()';
+	ok invocant($pkg)->isa('UNIVERSAL'), 'invocant()';
 }
 
-foreach my $pkg('not_exists', '', 1, undef, [], *ok, ){
+foreach my $pkg('not_exists', '', 1, undef, [], *ok){
 	ok !defined(get_stash $pkg), 'get_stash for ' . neat($pkg) . '(invalid value)';
-	ok !is_invocant($pkg), 'is_invocant';
+	ok !is_invocant($pkg), '!is_invocant()';
 	throws_ok{
 		invocant($pkg);
-	} qr/Validation failed/, 'invocant';
+	} qr/Validation failed/, 'invocant() throws fatal error';
 }
 
 my $x = tie my($ts), 'Tie::StdScalar', 'main';

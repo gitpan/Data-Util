@@ -1,7 +1,7 @@
 #!perl -w
 use strict;
 
-use Test::More tests => 70;
+use Test::More tests => 100;
 
 use Test::Exception;
 
@@ -29,20 +29,37 @@ foreach my $x('', undef, [], *STDIN{IO}, *ok, $s){
 }
 
 tie $s, 'Tie::StdScalar', 1234;
-foreach my $x(0, 1, -1, 3.00, '0', '+0', '-0', ' 0', 2**30, '0 but true', $s){
+foreach my $x(0, 1, -1, 3.00, '0', '+0', '-0', ' 0', 2**30, $s){
 	ok is_integer($x), sprintf 'is_integer(%s)', neat($x);
+
+	my $w;
+	local $SIG{__WARN__} = sub{ $w = "@_" };
+	my $i = 0+$x;
+
+	is $w, undef, 'numify-safe';
 }
 tie $s, 'Tie::StdScalar', 'magic';
-foreach my $x(undef, 3.14, '0.0', '1?', 'foo', 'Inf', '-Infinity', 'NaN', '', *ok, [42], *STDIN{IO}, $s){
+foreach my $x(
+		undef, 3.14, '0.0', '1?', 'foo', 'Inf', '-Infinity', 'NaN', '',
+		0+'Inf', 0+'-Inf', 0+'NaN', 1 != 1,
+	*ok, [42], *STDIN{IO}, '0 but true', $s){
 	ok !is_integer($x), sprintf '!is_integer(%s)', neat($x);
 }
 
 tie $s, 'Tie::StdScalar', 123.456;
-foreach my $x(0, 1, -1, 3.14, '0', '+0', '-0', '0E0', ' 0.0', '1e-1', 2**32+0.1, '0 but true', $s){
+foreach my $x(0, 1, -1, 3.14, '0', '+0', '-0', '0E0', ' 0.0', '1e-1', 2**32+0.1, $s){
 	ok is_number($x), sprintf 'is_number(%s)', neat($x);
+
+	my $w;
+	local $SIG{__WARN__} = sub{ $w = "@_" };
+	my $n = 0+$x;
+
+	is $w, undef, 'numify-safe';
 }
 
 tie $s, 'Tie::StdScalar', 'magic';
-foreach my $x(undef, 'foo', 'Inf', '-Infinity', 'NaN', '', '0.0?', *ok, [42], *STDIN{IO}, $s){
+foreach my $x(undef, 'foo', 'Inf', '-Infinity', 'NaN',
+		0+'Inf', 0+'-Inf', 0+'NaN', 1 != 1,
+		'', '0.0?', '0 but true', *ok, [42], *STDIN{IO}, $s){
 	ok !is_number($x), sprintf '!is_number(%s)', neat($x);
 }

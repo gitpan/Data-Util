@@ -127,8 +127,6 @@ sub is_string{
 sub is_number{
 	return 0 if !defined($_[0]) || ref($_[0]);
 
-	return 1 if $_[0] eq '0 but true';
-
 	return $_[0] =~ m{
 		\A \s*
 			[+-]?
@@ -143,8 +141,6 @@ sub is_number{
 sub is_integer{
 	return 0 if !defined($_[0]) || ref($_[0]);
 
-	return 1 if $_[0] eq '0 but true';
-
 	return $_[0] =~ m{
 		\A \s*
 			[+-]?
@@ -154,13 +150,19 @@ sub is_integer{
 }
 
 sub get_stash{
-	my($package) = @_;
-	return undef unless is_string($package);
+	my($invocant) = @_;
 
-	$package =~ s/^:://;
+	if(Scalar::Util::blessed($invocant)){
+		$invocant = ref $invocant;
+	}
+	elsif(!is_string($invocant)){
+		return undef;
+	}
+
+	$invocant =~ s/^:://;
 
 	my $pack = *main::;
-	foreach my $part(split /::/, $package){
+	foreach my $part(split /::/, $invocant){
 		return undef unless $pack = $pack->{$part . '::'};
 	}
 	return *{$pack}{HASH};
@@ -184,7 +186,7 @@ sub neat{
 		return overload::StrVal($s);
 	}
 	elsif(defined $s){
-		return $s   if Scalar::Util::looks_like_number($s);
+		return $s   if is_number($s);
 		return "$s" if is_glob_ref(\$s);
 
 		require B;
@@ -299,7 +301,7 @@ sub curry{
 	my $i = 0;
 	my $maxp = -1;
 	foreach my $arg(@_){
-		if(is_scalar_ref($arg) && Scalar::Util::looks_like_number($$arg)){
+		if(is_scalar_ref($arg) && is_integer($$arg)){
 			push @tmpl, sprintf '$_[%d]', $$arg;
 			$maxp = $$arg if $maxp < $$arg;
 		}

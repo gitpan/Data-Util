@@ -97,20 +97,20 @@ du_neat_cat(pTHX_ SV* const dsv, SV* x, const int level){
 			Perl_sv_catpvf(aTHX_ dsv, "%s(0x%p)", sv_reftype(x, FALSE), x);
 		}
 	}
-	else if(SvTYPE(x) == SVt_PVGV){
+	else if(isGV(x)){
 		sv_catsv(dsv, x);
 	}
 	else if(SvOK(x)){
-		if(my_SvNIOK(x)){
-			Perl_sv_catpvf(aTHX_ dsv, "%"NVgf, SvNV(x));
-		}
-		else{
+		if(my_SvPOK(x)){
 			STRLEN cur;
 			char* const pv = SvPV(x, cur);
 			SV* sv = newSV(PV_LIMIT + 5);
 			sv_2mortal(sv);
 			pv_display(sv, pv, cur, cur, PV_LIMIT);
 			sv_catsv(dsv, sv);
+		}
+		else{
+			Perl_sv_catpvf(aTHX_ dsv, "%"NVgf, SvNV(x));
 		}
 	}
 	else{

@@ -7,7 +7,7 @@ Data::Util::JA - データとデータ型のためのユーティリティ集
 
 =head1 VERSION
 
-This document describes Data::Util version 0.40
+This document describes Data::Util version 0.41
 
 =head1 SYNOPSIS
 
@@ -136,7 +136,7 @@ I<value>に対してメソッドを起動できるかどうかをチェックし
 =item is_value(value)
 
 I<value>がプリミティブ値かどうかをチェックします。すなわち，定義済みであり，
-リファレンスでなければ真を返します。
+リファレンスではなく，型グロブでもなければ真を返します。
 
 この関数には検証を行う対応関数がありません。
 
@@ -151,16 +151,19 @@ C<< is_value($value) && length($value) > 0 >>と同じです。
 =item is_number(value)
 
 I<value>が数値かどうかをチェックします。
-また，C<"0 but true">は数値として扱われます。
-C<Scalar::Util::looks_like_number()>と異なり，
-C<"Inf">やC<"NaN">は数値として扱われません。
+この「数値」とは，C<< sprintf '%g', $value >>などとしたときに警告を出さず，
+またPerlプログラム中にリテラルとしておくことができる値という意味です。
+
+すなわち，この関数はC<Scalar::Util::looks_like_number()>と異なり，
+C<"Inf">やC<"NaN">を数値として扱いません。また，数値化したときに
+警告を出さない例外であるC<"0 but true">>も数値として扱いません。
 
 この関数には検証を行う対応関数がありません。
 
 =item is_integer(value)
 
-I<value>が整数かどうかをチェックします。
-また，C<"0 but true">は整数として扱われます。
+I<value>が整数かどうかをチェックします。これはC<is_number()>の判定に加えて，
+整数値かどうかをチェックします。
 
 この関数には検証を行う対応関数がありません。
 
@@ -239,14 +242,16 @@ I<value>を表示に適するよう整形した文字列を返します。
 C<<do{ defined($value) ? qq{"$value"} : 'undef' }>>を置き換える機能
 として提供されます。
 
-=item get_stash(package)
+=item get_stash(invocant)
 
-スタッシュ B<stash> と呼ばれるI<package>のシンボルテーブルハッシュが
+スタッシュ B<stash> と呼ばれるI<invocant>のシンボルテーブルハッシュが
 存在すれば，そのスタッシュを返します。
 
-これはC<< do{ no strict 'refs'; \%{$package.'::'} } >>というコードに似ていますが，
-I<package>が存在しなければそのスタッシュは生成せずC<undef>を返します。
-なお，I<package>が未定義値またはリファレンスのときもC<undef>を返します。
+I<invocant>がオブジェクトリファレンスであれば，そのオブジェクトのパッケージの
+スタッシュを返します。
+
+I<invocant>がパッケージ名であり，そのパッケージが既に存在すれば，
+そのパッケージのスタッシュを返します。
 
 =item install_subroutine(package, name => subr [, ...])
 

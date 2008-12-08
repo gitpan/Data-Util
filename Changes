@@ -1,10 +1,15 @@
 Revision history for Data-Util
 
+0.41
+	- change get_stash() to be able to take an object reference
+	- change is_number()/is_integer() to refuse "0 but true"
+	- fix some bugs
+
 0.40 Sun Dec  7 13:42:17 2008
 	- add is_value()/is_string()/is_number()/is_integer() functions
 	- change get_stash/invocant/is_invocant to refuse "" as a class name
-	- allow uninstall_subroutine(pkg, subr => \&subr) construction
-		which can take the same arguments as install_subroutine()
+	- change uninstall_subroutine() to be able to take the same arguments
+		as install_subroutine()
 
 0.32 Thu Dec  4 13:25:29 2008
 	- fix uninstall_subroutine() to work correctly (t/17_nsclean.t)

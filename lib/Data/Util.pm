@@ -4,7 +4,7 @@ use 5.008_001;
 use strict;
 #use warnings;
 
-our $VERSION = '0.40';
+our $VERSION = '0.41';
 
 use Exporter qw(import);
 
@@ -73,7 +73,7 @@ Data::Util - A selection of utilities for data and data types
 
 =head1 VERSION
 
-This document describes Data::Util version 0.40
+This document describes Data::Util version 0.41
 
 =head1 SYNOPSIS
 
@@ -135,7 +135,7 @@ This module provides utility functions for data and data types,
 including functions for subroutines.
 
 The implementation of this module is both Pure Perl and XS, so if you have a C
-compiler, all the functions the module provides are really faster.
+compiler, all the functions this module provides are really faster.
 
 =head1 INTERFACE
 
@@ -187,7 +187,8 @@ If I<value> is a valid class name but does not exist, it will return false.
 
 =item is_value(value)
 
-Checks whether I<value> is a primitive value, i.e. a defined, non-ref value.
+Checks whether I<value> is a primitive value, i.e. a defined, non-ref, and
+non-type-glob value.
 
 This function has no counterpart for validation.
 
@@ -200,14 +201,18 @@ This function has no counterpart for validation.
 
 =item is_number(value)
 
-Checks whether I<value> is a number, accepting C<"0 but true">.
-It is similar to C<Scalar::Util::looks_like_number()> but refuses C<"Inf"> and C<"NaN">.
+Checks whether I<value> is a number.
+Here, a B<number> means that the perl parser is understandable and that
+the numifying process like C<< sprintf '%g', $value >> produces no warnings.
+
+It is similar to C<Scalar::Util::looks_like_number()>
+but refuses C<"Inf"> and C<"NaN">.
 
 This function has no counterpart for validation.
 
 =item is_integer(value)
 
-Checks whether I<value> is an integer, accepting C<"0 but true">.
+Checks whether I<value> is an integer.
 
 This function has no counterpart for validation.
 
@@ -296,13 +301,10 @@ Returns a neat string that is suitable to display.
 
 This is a smart version of C<<do{ defined($value) ? qq{"$value"} : 'undef' }>>.
 
-=item get_stash(package)
+=item get_stash(invocant)
 
-Returns the symbol table hash (also known as B<stash>) of I<package>
+Returns the symbol table hash (also known as B<stash>) of I<invocant>
 if the stash exists.
-
-It is similar to C<< do{ no strict 'refs'; \%{$package.'::'} } >>,
-but does B<not> create the stash if I<package> does not exist.
 
 =item install_subroutine(package, name => subr [, ...])
 

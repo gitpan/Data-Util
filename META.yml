@@ -1,7 +1,7 @@
 ---
 abstract: 'A selection of utilities for data and data types'
 author:
-  - 'Goro Fuji <gfuji(at)cpan.org>'
+  - 'Goro Fuji(gfx) <gfuji(at)cpan.org>.'
 build_requires:
   Hash::Util::FieldHash::Compat: 0
   Scope::Guard: 0
@@ -26,4 +26,4 @@ requires:
   perl: 5.8.1
 resources:
   license: http://dev.perl.org/licenses/
-version: 0.40
+version: 0.41
