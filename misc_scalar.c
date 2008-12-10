@@ -89,7 +89,7 @@ du_neat_cat(pTHX_ SV* const dsv, SV* x, const int level){
 			GV* const gv = CvGV((CV*)x);
 			Perl_sv_catpvf(aTHX_ dsv, "\\&%s::%s(0x%p)", HvNAME(GvSTASH(gv)), GvNAME(gv), x);
 		}
-		else if(my_SvPOK(x) || my_SvNIOK(x) || isGV(x)){
+		else if(SvPOKp(x) || SvNIOKp(x) || isGV(x)){
 			sv_catpvs(dsv, "\\");
 			du_neat_cat(aTHX_ dsv, x, level+1);
 		}
@@ -101,7 +101,7 @@ du_neat_cat(pTHX_ SV* const dsv, SV* x, const int level){
 		sv_catsv(dsv, x);
 	}
 	else if(SvOK(x)){
-		if(my_SvPOK(x)){
+		if(SvPOKp(x)){
 			STRLEN cur;
 			char* const pv = SvPV(x, cur);
 			SV* sv = newSV(PV_LIMIT + 5);

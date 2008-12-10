@@ -127,8 +127,9 @@ my_mro_get_linear_isa(pTHX_ HV* const stash){
 #else /* !mro_get_linear_isa */
 
 /* NOTE:
-	Because ActivePerl 5.10.0 does not provide Perl_mro_meta_init()
-	which is used in HvMROMETA() macro, this mro_get_pkg_gen() refers to xhv_mro_meta directly.
+	Because ActivePerl 5.10.0 does not provide Perl_mro_meta_init(), 
+	which is used in HvMROMETA() macro, this mro_get_pkg_gen() refers
+	to xhv_mro_meta directly.
 */
 #ifndef mro_get_pkg_gen
 #define mro_get_pkg_gen(stash) (HvAUX(stash)->xhv_mro_meta ? HvAUX(stash)->xhv_mro_meta->pkg_gen : (U32)0)

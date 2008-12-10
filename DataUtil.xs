@@ -3,12 +3,19 @@
 #define NEED_mro_get_linear_isa
 #include "data-util.h"
 
-#define GvSetSV(gv, sv) SvSetMagicSV((SV*)gv, sv_2mortal(newRV_inc((SV*)sv)))
+#define GvSetSV(gv, sv) STMT_START{\
+		ENTER;                                                \
+		SAVETMPS;                                             \
+		SvSetMagicSV((SV*)gv, sv_2mortal(newRV_inc((SV*)sv)));\
+		FREETMPS;                                             \
+		LEAVE;                                                \
+	} STMT_END
 
 #define MY_CXT_KEY "Data::Util::_guts" XS_VERSION
 
-#define NOT_REACHED ((void)"PANIC: NOT REACHED", 0)
-#define NotReached assert(NOT_REACHED)
+#define NotReached assert(((void)"PANIC: NOT REACHED", 0))
+
+#define is_special_nv(nv) (nv == NV_INF || nv == -NV_INF || Perl_isnan(nv))
 
 typedef struct{
 	GV* universal_isa;
@@ -133,49 +140,48 @@ my_check_type_primitive(pTHX_ SV* const sv, const my_type_t t){
 	if(SvROK(sv) || !SvOK(sv) || isGV(sv)){
 		return FALSE;
 	}
+
 	switch(t){
 	case T_INT:
-		if(!my_SvPOK(sv)){
-			if(SvIOKp(sv)){
-				return TRUE;
-			}
-			else if(SvNOKp(sv)){
-				NV const nv = SvNVX(sv);
-				return (nv == (NV)(IV)nv || nv == (NV)(UV)nv) ? TRUE : FALSE;
-			}
-		}
-		/* fall through */
-	case T_NUM:
-		if(my_SvPOK(sv)){
+		if(SvPOKp(sv)){
 			STRLEN const len     = SvCUR(sv);
 			const char* const pv = SvPVX(sv);
 			int const num_type = grok_number(pv, len, NULL);
 
 			if(num_type && !strEQ(pv, "0 but true")){
-				if(t == T_INT){
-					return (num_type & IS_NUMBER_NOT_INT) ? FALSE : TRUE;
-				}
-				else{
-					return (num_type & (IS_NUMBER_INFINITY | IS_NUMBER_NAN)) ? FALSE : TRUE;
-				}
+				return (num_type & IS_NUMBER_NOT_INT) ? FALSE : TRUE;
 			}
-			else{
-				return FALSE;
-			}
+		}
+		else if(SvNOKp(sv)){
+			NV const nv = SvNVX(sv);
+			return (nv == (NV)(IV)nv || nv == (NV)(UV)nv) ? TRUE : FALSE;
 		}
 		else if(SvIOKp(sv)){
 			return TRUE;
 		}
+		return FALSE;
+
+	case T_NUM:
+		if(SvPOKp(sv)){
+			STRLEN const len     = SvCUR(sv);
+			const char* const pv = SvPVX(sv);
+			int const num_type = grok_number(pv, len, NULL);
+
+			if(num_type && !strEQ(pv, "0 but true")){
+				return (num_type & (IS_NUMBER_INFINITY | IS_NUMBER_NAN)) ? FALSE : TRUE;
+			}
+		}
 		else if(SvNOKp(sv)){
 			NV const nv = SvNVX(sv);
-			return (nv == NV_INF || nv == -NV_INF || Perl_isnan(nv)) ? FALSE : TRUE;
+			return is_special_nv(nv) ? FALSE : TRUE;
 		}
-		else{
-			NotReached;
+		else if(SvIOKp(sv)){
+			return TRUE;
 		}
+		return FALSE;
 
 	case T_STR:
-		if(my_SvPOK(sv)){
+		if(SvPOKp(sv)){
 			return SvCUR(sv) > 0 ? TRUE : FALSE;
 		}
 		/* fall throught */
@@ -793,7 +799,11 @@ CODE:
 
 		SvSetMagicSV((SV*)gv, code); /* *foo = \&bar */
 
-		if(strEQ(GvNAME(CvGV(code_cv)), "__ANON__")){ /* check anonymousity by name, not by CvANON flag */
+		if(CvANON(code_cv) && strEQ(GvNAME(CvGV(code_cv)), "__ANON__") /* Sub::Name doesn't turn CvANON off. */){
+			/* save the original gv on magic slot */
+			sv_magicext((SV*)code_cv, (SV*)CvGV(code_cv), PERL_MAGIC_ext, NULL /* NULL vtbl */, NULL, 0);
+
+			/* rename code_cv with gv */
 			CvGV(code_cv) = gv;
 			CvANON_off(code_cv);
 		}
@@ -912,7 +922,7 @@ CODE:
 		SV* const sv = ST(i);
 		SvGETMAGIC(sv);
 
-		if(SvROK(sv) && SvIOK(SvRV(sv)) && !SvOBJECT(SvRV(sv))){ // \0, \1, ...
+		if(SvROK(sv) && SvIOKp(SvRV(sv)) && !SvOBJECT(SvRV(sv))){ // \0, \1, ...
 			av_store(args, i, &PL_sv_undef);
 			av_store(placeholders, i, newSVsv(SvRV(sv)));
 		}
@@ -1087,7 +1097,7 @@ PPCODE:
 				SvREFCNT_inc_simple_void_NN(current);
 			}
 		}
-		XPUSHav(property, 0, av_len(property)+1);
+		XPUSHary(AvARRAY(property), 0, av_len(property)+1);
 	}
 	else{
 		my_fail(aTHX_ "a modifier property", property);

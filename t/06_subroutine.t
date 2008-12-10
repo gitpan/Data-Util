@@ -1,7 +1,7 @@
 #!perl -w
 
 use strict;
-use Test::More tests =>31;
+use Test::More tests =>36;
 use Test::Exception;
 
 use Data::Util qw(:all);
@@ -89,14 +89,31 @@ SKIP:{
 is Foo::foo(), 1, 'install closure';
 is Foo::foo(), 2;
 
+delete $main::{__ANON__};
+is Foo::foo(), 3, 'after *main::__ANON__ deleted';
+is Foo::foo(), 4;
+
+my $f = \&Foo::foo;
+delete $Foo::{foo};
+is $f->(), 5, 'after *Foo::foo deleted';
+is $f->(), 6;
+
+
 SKIP:{
-	skip 'in testing perl only', 1 if PP_ONLY;
-	is get_subname(\&Foo::foo), 'Foo::foo';
+	skip 'in testing perl only', 2 if PP_ONLY;
+
+	Foo->install_subroutine(foo => sub{});
+	is get_subname(\&Foo::foo), 'Foo::foo', 'name an anonymous subr';
+
+	Foo->install_subroutine(bar => \&Foo::foo);
+	is get_subname(\&Foo::bar), 'Foo::foo', 'does not name a named subr';
 }
+
+# exception
 
 Foo->install_subroutine(foo => \&undefined_subr);
 dies_ok{
-	Foo::foo();
+	Foo->foo();
 } 'install undefined subroutine';
 
 

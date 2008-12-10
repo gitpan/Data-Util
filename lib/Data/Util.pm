@@ -4,7 +4,7 @@ use 5.008_001;
 use strict;
 #use warnings;
 
-our $VERSION = '0.41';
+our $VERSION = '0.42';
 
 use Exporter qw(import);
 
@@ -19,6 +19,10 @@ unless($TESTING_PERL_ONLY){
 		require XSLoader;
 		XSLoader::load(__PACKAGE__, $VERSION);
 	};
+#
+#	if($@ && $ENV{DATA_UTIL_DEBUG}){
+#		warn $@;
+#	}
 }
 
 require q{Data/Util/PurePerl.pm} # not to create the namespace
@@ -73,7 +77,7 @@ Data::Util - A selection of utilities for data and data types
 
 =head1 VERSION
 
-This document describes Data::Util version 0.41
+This document describes Data::Util version 0.42
 
 =head1 SYNOPSIS
 
@@ -206,13 +210,16 @@ Here, a B<number> means that the perl parser is understandable and that
 the numifying process like C<< sprintf '%g', $value >> produces no warnings.
 
 It is similar to C<Scalar::Util::looks_like_number()>
-but refuses C<"Inf"> and C<"NaN">.
+but refuses C<"Inf">, C<"NaN">, C<9**9**9> (which makes C<infinity>) and
+C<9**9**9 - 9**9**9> (which makes C<not a number>).
 
 This function has no counterpart for validation.
 
 =item is_integer(value)
 
 Checks whether I<value> is an integer.
+An B<integer> is also a B<number>, so this function
+refuses C<infinity> and C<not a number>. See also C<is_number()>.
 
 This function has no counterpart for validation.
 

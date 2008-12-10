@@ -1,4 +1,4 @@
-package # it's an example for modify_subroutine()
+package # this is an example for modify_subroutine()/subroutne_modifier().
 	Method::Modifiers;
 
 use strict;
@@ -28,7 +28,7 @@ sub add_method_modifier{
 		my $entity = $class->can($method)
 			or _croak(qq{The method '$method' is not found in the inheritance hierarchy for class $class});
 
-		if(!subroutine_modifier($entity) or (Data::Util::get_code_info($entity))[0] ne $class){
+		if(!Data::Util::subroutine_modifier($entity) or (Data::Util::get_code_info($entity))[0] ne $class){
 			$entity = Data::Util::modify_subroutine($entity);
 
 			no warnings 'redefine';
@@ -59,14 +59,14 @@ __END__
 
 =head1 NAME
 
-MethodModifiers - Provides Moose-like method modifiers
+Method::Modifiers - Lightweight method modifiers
 
 =head1 SYNOPSIS
 
 	package Foo;
 	use warnings;
 	use Data::Util qw(:all);
-	use MethodModifiers;
+	use Method::Modifiers;
 
 	before old_method =>
 		curry \&warnings::warnif, deprecated => q{"old_method" is deprecated, use "new_method" instead};
@@ -116,8 +116,6 @@ See L<Data::Util> for details.
 =head1 SEE ALSO
 
 L<Data::Util>.
-
-L<Method::Modifiers>
 
 L<Moose>.
 

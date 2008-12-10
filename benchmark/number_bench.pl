@@ -14,7 +14,7 @@ signeture
 	'Data::Util' => \&is_number,
 	'Scalar::Util' => \&looks_like_number;
 
-print "Benchmark: is_number(), is_integer(), is_looks_like_number()\n";
+print "Benchmark: is_number(), is_integer(), looks_like_number()\n";
 for my $x(42, exp(1), '42', sprintf('%g', exp(1)), undef){
 	print "For ", neat($x), "\n";
 

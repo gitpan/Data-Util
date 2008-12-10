@@ -30,7 +30,7 @@ cmpthese -1 => {
 
 my($a, $b) = (1, 3);
 my $c = curry(\&f, $a, \0, $b, \1);
-my $d = sub{ f($a, $_[0], $b, \1) };
+my $d = sub{ f($a, $_[0], $b, $_[1]) };
 
 print "Calling with subscriptive placeholders:\n";
 cmpthese -1 => {

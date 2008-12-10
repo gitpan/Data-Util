@@ -25,12 +25,12 @@ XS(XS_Data__Util_curried){
 	SP -= items;
 	/*
 	  NOTE:
-	  Curried subroutines have two properties, "args" and placeholders("pls").
-	  Geven a curried subr created by "curry(\&f, $x, *_, $y, \0):
+	  Curried subroutines have two properties, "args" and "pls"(placeholders).
+	  Geven a curried subr created by "curry(\&f, $x, *_, $y, \0)":
 		args: [   $x, undef,    $y, undef]
 		pls:  [undef,    *_, undef,     0]
 
-	  Here the curried subroutine is called with arguments.
+	  Here the curried subr is called with arguments.
 	  Firstly, the arguments are set to args, expanding subscriptive placeholders,
 	  but the placeholder "*_" is set to the end of args.
 	  	args: [   $x,      undef,    $y, $_[0], @_[1 .. $#_] ]
@@ -59,7 +59,7 @@ XS(XS_Data__Util_curried){
 		/* fill in args */
 		for(i = 0; i < len; i++){
 			SV* const sv = pls_ary[i];
-			if(SvIOK(sv)){ /* subscriptive placeholders */
+			if(SvIOKp(sv)){ /* subscriptive placeholders */
 				IV p = SvIVX(sv);
 				if(p < 0) p += items + 1;
 
@@ -72,7 +72,7 @@ XS(XS_Data__Util_curried){
 
 				if(p > maxp) maxp = p;
 			}
-			else if(SvTYPE(sv) == SVt_PVGV){ // *_
+			else if(isGV(sv)){ /* symbolic placeholder *_ */
 				if(!expanded){
 					I32 j;
 
@@ -108,8 +108,8 @@ XS(XS_Data__Util_curried){
 		}
 
 		for(i = start_idx; i < len; i++){
-			if(SvTYPE(pls_ary[i]) == SVt_PVGV){
-				PUSHav(args, len + (maxp+1), len + items);
+			if(isGV(pls_ary[i])){
+				PUSHary(args_ary, len + (maxp+1), len + items);
 			}
 			else{
 				PUSHs(args_ary[i]);
@@ -119,7 +119,7 @@ XS(XS_Data__Util_curried){
 
 		/* NOTE: need to clean up args before call_sv(), because call_sv() might die */
 		for(i = 0; i < len; i++){
-			if(SvIOK(pls_ary[i])){
+			if(SvIOKp(pls_ary[i])){
 				/* NOTE: no need to SvREFCNT_dec(args_ary[i]) */
 				args_ary[i] = &PL_sv_undef;
 			}
@@ -129,19 +129,20 @@ XS(XS_Data__Util_curried){
 	}
 }
 
+/* call an av of cv with args_ary */
 static void
-my_call_av(pTHX_ AV* const subs, AV* const args, I32 const args_len){
-	const I32 subs_len = AvFILLp(subs) + 1;
+my_call_av(pTHX_ AV* const subs, SV** const args_ary, I32 const args_len){
+	I32 const subs_len = AvFILLp(subs) + 1;
 	I32 i;
-	dSP;
 
 	for(i = 0; i < subs_len; i++){
+		dSP;
+
 		PUSHMARK(SP);
-		XPUSHav(args, 0, args_len);
+		XPUSHary(args_ary, 0, args_len);
 		PUTBACK;
 
 		call_sv(AvARRAY(subs)[i], G_VOID | G_DISCARD);
-		SPAGAIN;
 	}
 }
 
@@ -167,15 +168,19 @@ XS(XS_Data__Util_modified){
 			AvARRAY(args)[i] = ST(i); /* no need to SvREFCNT_inc() */
 		}
 
-		my_call_av(aTHX_ before, args, items);
+		{
+			SV** const args_ary = AvARRAY(args);
 
-		PUSHMARK(SP);
-		XPUSHav(args, 0, items);
-		PUTBACK;
+			my_call_av(aTHX_ before, args_ary, items);
 
-		call_sv(current, GIMME_V);
+			PUSHMARK(SP);
+			XPUSHary(args_ary, 0, items);
+			PUTBACK;
 
-		my_call_av(aTHX_ after, args, items);
+			call_sv(current, GIMME_V);
+
+			my_call_av(aTHX_ after, args_ary, items);
+		}
 	}
 	/* Don't XSRETURN(n) */
 }

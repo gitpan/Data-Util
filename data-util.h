@@ -12,26 +12,20 @@
 #include "mro_compat.h"
 #include "str_util.h"
 
-
-#define my_SvNIOK(sv) (SvFLAGS(sv) & (SVf_IOK|SVf_NOK|SVp_IOK|SVp_NOK))
-#define my_SvPOK(sv)  (SvFLAGS(sv) & (SVp_POK | SVf_POK))
-
 #ifndef SvRXOK
 #define SvRXOK(sv) ((bool)(SvROK(sv) && (SvTYPE(SvRV(sv)) == SVt_PVMG) && mg_find(SvRV(sv), PERL_MAGIC_qr)))
 #endif
 
-#define is_string(x) (SvOK(x) && !SvROK(x) && (my_SvPOK(x) ? SvCUR(x) > 0 : TRUE))
+#define is_string(x) (SvOK(x) && !SvROK(x) && (SvPOKp(x) ? SvCUR(x) > 0 : TRUE))
 
-#define PUSHav(av, start, len) STMT_START{        \
-		SV** const ary = AvARRAY(av);     \
+#define PUSHary(ary, start, len) STMT_START{      \
 		I32 i;                            \
 		I32 const length = (len);         \
 		for(i = (start) ;i < length; i++){\
 			PUSHs(ary[i]);            \
 		}                                 \
 	} STMT_END
-#define XPUSHav(av, start, len) STMT_START{       \
-		SV** const ary = AvARRAY(av);     \
+#define XPUSHary(ary, start, len) STMT_START{     \
 		I32 i;                            \
 		I32 const length = (len);         \
 		EXTEND(SP, length);               \

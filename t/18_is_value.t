@@ -8,6 +8,9 @@ use Test::Exception;
 use Data::Util qw(:all);
 use Tie::Scalar;
 
+use constant INF => 9**9**9;
+use constant NAN => sin(INF());
+
 my $s;
 
 tie $s, 'Tie::StdScalar', 'magic';
@@ -29,7 +32,7 @@ foreach my $x('', undef, [], *STDIN{IO}, *ok, $s){
 }
 
 tie $s, 'Tie::StdScalar', 1234;
-foreach my $x(0, 1, -1, 3.00, '0', '+0', '-0', ' 0', 2**30, $s){
+foreach my $x(0, 42, -42, 3.00, '0', '+0', '-0', ' -42', '+42 ', 2**30, $s){
 	ok is_integer($x), sprintf 'is_integer(%s)', neat($x);
 
 	my $w;
@@ -40,9 +43,10 @@ foreach my $x(0, 1, -1, 3.00, '0', '+0', '-0', ' 0', 2**30, $s){
 }
 tie $s, 'Tie::StdScalar', 'magic';
 foreach my $x(
-		undef, 3.14, '0.0', '1?', 'foo', 'Inf', '-Infinity', 'NaN', '',
-		0+'Inf', 0+'-Inf', 0+'NaN', 1 != 1,
+		undef, 3.14, '0.0', 'foo', 'Inf', '-Infinity', 'NaN',
+		INF(), -INF(), NAN(), -NAN(), 1 != 1,
 	*ok, [42], *STDIN{IO}, '0 but true', $s){
+
 	ok !is_integer($x), sprintf '!is_integer(%s)', neat($x);
 }
 
@@ -59,7 +63,8 @@ foreach my $x(0, 1, -1, 3.14, '0', '+0', '-0', '0E0', ' 0.0', '1e-1', 2**32+0.1,
 
 tie $s, 'Tie::StdScalar', 'magic';
 foreach my $x(undef, 'foo', 'Inf', '-Infinity', 'NaN',
-		0+'Inf', 0+'-Inf', 0+'NaN', 1 != 1,
-		'', '0.0?', '0 but true', *ok, [42], *STDIN{IO}, $s){
+		INF(), -INF(), NAN(), -NAN(), 1 != 1,
+		'0 but true', *ok, [42], *STDIN{IO}, $s){
+
 	ok !is_number($x), sprintf '!is_number(%s)', neat($x);
 }

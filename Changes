@@ -1,6 +1,11 @@
 Revision history for Data-Util
 
-0.41
+0.42 Wed Dec 10 13:42:50 2008
+	- fix is_number()/is_integer() to refuse Infinity and NaN correctly
+	- fix a possible segfault on install_subrouitne()
+	- internal cleanup
+
+0.41 Man Dec  8 11:36:38 2008
 	- change get_stash() to be able to take an object reference
 	- change is_number()/is_integer() to refuse "0 but true"
 	- fix some bugs

@@ -17,7 +17,9 @@ Changes
 data-util.h
 DataUtil.xs
 example/curry.pl
+example/export_lexical.pl
 example/lib/Method/Modifiers.pm
+example/lib/Sub/Exporter/Lexical.pm
 example/modifier.pl
 example/neat.pl
 example/synopsis.pl
@@ -60,7 +62,7 @@ t/14_uninst_subr.t
 t/15_curry.t
 t/16_modify.t
 t/17_nsclean.t
-t/18_is.t
+t/18_is_value.t
 t/lib/NSClean.pm
 t/pp01_refs.t
 t/pp02_inst.t
@@ -77,7 +79,7 @@ t/pp13_optlist.t
 t/pp14_uninst_subr.t
 t/pp15_curry.t
 t/pp16_modify.t
-t/pp18_is.t
+t/pp18_is_value.t
 typemap
 xt/01_pod.t
 xt/02_pod-coverage.t

@@ -153,7 +153,8 @@ sub get_stash{
 	my($invocant) = @_;
 
 	if(Scalar::Util::blessed($invocant)){
-		$invocant = ref $invocant;
+		no strict 'refs';
+		return \%{ref($invocant) . '::'};
 	}
 	elsif(!is_string($invocant)){
 		return undef;
