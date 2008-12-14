@@ -8,7 +8,7 @@ MGVTBL modified_vtbl;
 
 MAGIC*
 my_mg_find_by_vtbl(pTHX_ SV* const sv, const MGVTBL* const vtbl){
-	MAGIC* mg = NULL;
+	MAGIC* mg;
 	for(mg = SvMAGIC(sv); mg; mg = mg->mg_moremagic){
 		if(mg->mg_virtual == vtbl){
 			break;
@@ -59,29 +59,18 @@ XS(XS_Data__Util_curried){
 		/* fill in args */
 		for(i = 0; i < len; i++){
 			SV* const sv = pls_ary[i];
-			if(SvIOKp(sv)){ /* subscriptive placeholders */
-				IV p = SvIVX(sv);
-				if(p < 0) p += items + 1;
 
-				if(p >= 0 && p <= items){
-					/* NOTE: no need to SvREFCNT_inc(args_ary[i]),
-					 *       because it removed from args_ary before call_sv()
-					 */
-					args_ary[i] = ST(p);
-				}
-
-				if(p > maxp) maxp = p;
-			}
-			else if(isGV(sv)){ /* symbolic placeholder *_ */
+			if(isGV(sv)){ /* symbolic placeholder *_ */
 				if(!expanded){
 					I32 j;
+
+					av_extend(args, len + items);
+					args_ary = AvARRAY(args); /* maybe realloc()-ed */
 
 					/* 
 					   All the arguments @_ is pushed into the end of args,
 					   not calling SvREFCNT_inc().
 					*/
-					av_extend(args, len + items); /* maybe realloc() */
-					args_ary = AvARRAY(args);
 
 					expanded = &args_ary[len];
 					for(j = 0; j < items; j++){
@@ -93,6 +82,19 @@ XS(XS_Data__Util_curried){
 					}
 				}
 				push_size += items;
+			}
+			else if(SvIOKp(sv)){ /* subscriptive placeholders */
+				IV p = SvIVX(sv);
+				if(p < 0) p += items + 1;
+
+				if(p >= 0 && p <= items){
+					/* NOTE: no need to SvREFCNT_inc(args_ary[i]),
+					 *       because it removed from args_ary before call_sv()
+					 */
+					args_ary[i] = ST(p);
+				}
+
+				if(p > maxp) maxp = p;
 			}
 		}
 
@@ -161,26 +163,25 @@ XS(XS_Data__Util_modified){
 
 		dXSTARG;
 		AV* const args = (AV*)TARG;
+		SV** args_ary;
 		SvUPGRADE(TARG, SVt_PVAV);
 
 		av_extend(args, items - 1);
+		args_ary = AvARRAY(args);
+
 		for(i = 0; i < items; i++){
-			AvARRAY(args)[i] = ST(i); /* no need to SvREFCNT_inc() */
+			args_ary[i] = ST(i); /* no need to SvREFCNT_inc() */
 		}
 
-		{
-			SV** const args_ary = AvARRAY(args);
+		my_call_av(aTHX_ before, args_ary, items);
 
-			my_call_av(aTHX_ before, args_ary, items);
+		PUSHMARK(SP);
+		XPUSHary(args_ary, 0, items);
+		PUTBACK;
 
-			PUSHMARK(SP);
-			XPUSHary(args_ary, 0, items);
-			PUTBACK;
+		call_sv(current, GIMME_V);
 
-			call_sv(current, GIMME_V);
-
-			my_call_av(aTHX_ after, args_ary, items);
-		}
+		my_call_av(aTHX_ after, args_ary, items);
 	}
 	/* Don't XSRETURN(n) */
 }

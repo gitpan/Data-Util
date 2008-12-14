@@ -1,7 +1,7 @@
 #!perl -w
 
 use strict;
-use Test::More tests => 47;
+use Test::More tests => 48;
 use Test::Exception;
 
 use Data::Util qw(:all);
@@ -25,6 +25,13 @@ BEGIN{
 	use overload
 		bool  => sub{ 1 },
 		'%{}' => sub{ +{ foo => 'ARRAY' } },
+	;
+
+	package BadHash;
+		our @ISA = qw(Foo);
+	use overload
+		bool => sub{ 1 },
+		'%{}' => sub{ ['ARRAY'] },
 	;
 }
 
@@ -52,7 +59,7 @@ is_deeply mkopt([foo => anon_scalar], undef, false, 'SCALAR'), [[foo => anon_sca
 is_deeply mkopt([foo => \&ok],       undef, false, 'CODE'),   [[foo => \&ok]];
 is_deeply mkopt([foo => Foo->new], undef, false, 'Foo'), [[foo => Foo->new]];
 
-is_deeply mkopt(MyArray->new()), [ [ARRAY => undef] ], 'overloaded data';
+is_deeply mkopt(MyArray->new()), [ [ARRAY => undef] ], 'overloaded data (ARRAY)';
 
 is_deeply mkopt([foo => [], qw(bar)], undef, false, {foo => 'ARRAY'}),   [[foo => []], [bar => undef]];
 is_deeply mkopt([foo => [], bar => {}], undef, false, {foo => ['CODE', 'ARRAY'], bar => 'HASH'}), [[foo => []], [bar => {}]];
@@ -96,11 +103,13 @@ is_deeply $ref, {foo => undef};
 sub f{
 	return mkopt(@_);
 }
-my $a = mkopt(my $foo = ['foo']); push @$foo, 42;
-my $b = mkopt(my $bar = ['bar']); push @$bar, 42;
-is_deeply $a, [[foo => undef]], '(use TARG)';
-is_deeply $b, [[bar => undef]], '(use TARG)';
 
+{
+	my $a = mkopt(my $foo = ['foo']); push @$foo, 42;
+	my $b = mkopt(my $bar = ['bar']); push @$bar, 42;
+	is_deeply $a, [[foo => undef]], '(use TARG)';
+	is_deeply $b, [[bar => undef]], '(use TARG)';
+}
 # unique
 throws_ok{
 	mkopt [qw(foo foo)], "mkopt", 1;
@@ -110,6 +119,7 @@ throws_ok{
 } qr/multiple definitions/i, 'unique-mkopt_hash';
 
 # validation
+
 throws_ok{
 	mkopt [foo => []], "test", 0, 'HASH';
 } qr/ARRAY-ref values are not valid.* in test opt list/;
@@ -139,4 +149,8 @@ dies_ok{
 };
 dies_ok{
 	mkopt_hash anon_scalar();
+};
+
+dies_ok{
+	mkopt(BadHash->new(), 'test');
 };

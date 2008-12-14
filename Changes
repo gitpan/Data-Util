@@ -1,5 +1,13 @@
 Revision history for Data-Util
 
+0.43 Sun Dec 14 13:37:43 2008
+	- fix modifer's order of modify_subroutine()/subroutine_modifier()
+		to be compatible with Moose
+	- fix some bugs on neat()/is_number()/install_subroutine()
+	- remove "original" property from subroutine_modifier(), which seems
+		a waste of memory
+	- internal cleanup
+
 0.42 Wed Dec 10 13:42:50 2008
 	- fix is_number()/is_integer() to refuse Infinity and NaN correctly
 	- fix a possible segfault on install_subrouitne()

@@ -4,7 +4,7 @@ use 5.008_001;
 use strict;
 #use warnings;
 
-our $VERSION = '0.42';
+our $VERSION = '0.43';
 
 use Exporter qw(import);
 
@@ -77,7 +77,7 @@ Data::Util - A selection of utilities for data and data types
 
 =head1 VERSION
 
-This document describes Data::Util version 0.42
+This document describes Data::Util version 0.43
 
 =head1 SYNOPSIS
 
@@ -365,12 +365,13 @@ C<< before => [subroutine(s)] >> called before I<subr>.
 C<< around => [subroutine(s)] >> called around I<subr>.
 C<< after  => [subroutine(s)] >> called after  I<subr>.
 
-This is considered as a constructor of modified subroutines, and
-C<subroutine_modifier()> property accessors.
+This seems a constructor of modified subroutines and
+C<subroutine_modifier()> is property accessors, but it does not bless the 
+modified subroutines.
 
 =item subroutine_modifier(subr)
 
-Returns whether I<modified_subr> is a modified subroutine.
+Returns whether I<subr> is a modified subroutine.
 
 =item subroutine_modifier(modified_subr, property)
 
@@ -388,7 +389,7 @@ Valid modifiers are: C<before>, C<around>, C<after>.
 
 Produces an array of an array reference from I<input>.
 
-It is similar to C<Data::OptList::mkopt()>. In addition to it,
+It is compatible with C<Data::OptList::mkopt()>. In addition to it,
 I<must_be> can be a HASH reference with C<< name => type >> pairs.
 
 For example:
@@ -400,8 +401,8 @@ For example:
 
 Produces a hash reference from I<input>.
 
-It is similar to C<Data::OptList::mkopt_hash()>. In addition to it,
-I<must_be> can be a HASH reference with C<< name => tyupe >> pairs.
+It is compatible with C<Data::OptList::mkopt_hash()>. In addition to it,
+I<must_be> can be a HASH reference with C<< name => type >> pairs.
 
 For example:
 

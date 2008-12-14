@@ -20,17 +20,17 @@ for my $x(42, exp(1), '42', sprintf('%g', exp(1)), undef){
 
 	cmpthese -1 => {
 		is_number => sub{
-			for(1 .. 10){
+			for(1 .. 100){
 				my $ok = is_number $x;
 			}
 		},
 		is_integer => sub{
-			for(1 .. 10){
+			for(1 .. 100){
 				my $ok = is_integer $x;
 			}
 		},
 		looks_like_number => sub{
-			for(1 .. 10){
+			for(1 .. 100){
 				my $ok = looks_like_number $x;
 			}
 		},

@@ -1,7 +1,7 @@
 #!perl -w
 
 use strict;
-use Test::More tests => 43;
+use Test::More tests => 52;
 use Test::Exception;
 
 use constant HAS_SCOPE_GUARD => eval{ require Scope::Guard };
@@ -30,7 +30,6 @@ lives_ok{
 is_deeply [subroutine_modifier $w, 'before'], [\&before], 'getter:before';
 is_deeply [subroutine_modifier $w, 'around'], [\&around], 'getter:around';
 is_deeply [subroutine_modifier $w, 'after'],  [\&after],  'getter:after';
-is_deeply [subroutine_modifier $w, 'original'], [\&foo],  'getter:around';
 
 is_deeply [scalar $w->(1 .. 10)], [10], 'call with scalar context';
 is_deeply \@tags, [qw(before around after)];
@@ -97,40 +96,103 @@ sub before3{ push @tags, 'before3' }
 sub after2 { push @tags, 'after2'  }
 sub after3 { push @tags, 'after3'  }
 
-$w = modify_subroutine \&foo, around => [\&f1];
-subroutine_modifier $w, around => \&f2, \&f3;
-@tags = ();
-$w->();
-is_deeply \@tags, ['f3', 'f2', 'f1'], ':around order';
-
+# the order of around modifier
 $w = modify_subroutine \&foo, around => [ \&f1, \&f2, \&f3 ];
 @tags = ();
 $w->();
-is_deeply \@tags, ['f3', 'f2', 'f1'], ':around order';
+is_deeply \@tags, [qw(f1 f2 f3)], ":around order (modify_subroutine)(@tags)";
 
-
-$w = modify_subroutine \&foo, before => [\&before];
-subroutine_modifier $w, before => \&before2, \&before3;
+$w = modify_subroutine \&foo;
+subroutine_modifier $w, around => \&f3, \&f2, \&f1;
 @tags = ();
 $w->();
-is_deeply \@tags, ['before3', 'before2', 'before'], ':before order';
+is_deeply \@tags, [qw(f3 f2 f1)], ":around order (subroutine_modifier) (@tags)";
 
-$w = modify_subroutine \&foo, before => [ \&before, \&before2, \&before3 ];
+$w = modify_subroutine \&foo;
+subroutine_modifier $w, around => $_ for \&f1, \&f2, \&f3;
 @tags = ();
 $w->();
-is_deeply \@tags, ['before3', 'before2', 'before'], ':before order';
+is_deeply \@tags, [qw(f3 f2 f1)], ":around order (subroutine_modifier) (@tags)";
 
-
-$w = modify_subroutine \&foo, after => [\&after];
-subroutine_modifier $w, after => \&after2, \&after3;
+# the order of before modifier
+$w = modify_subroutine \&foo, before => [\&before, \&before2, \&before3];
 @tags = ();
 $w->();
-is_deeply \@tags, ['after', 'after2', 'after3'], ':after order';
+is_deeply \@tags, [qw(before before2 before3)], ':before order (modify_subroutine)';
 
-$w = modify_subroutine \&foo, after => [ \&after, \&after2, \&after3 ];
+$w = modify_subroutine \&foo;
+subroutine_modifier $w, before => \&before, \&before2, \&before3;
 @tags = ();
 $w->();
-is_deeply \@tags, ['after', 'after2', 'after3'], ':after order';
+is_deeply \@tags, [qw(before3 before2 before)], ':before order (subroutine_modifier)';
+
+$w = modify_subroutine \&foo;
+subroutine_modifier $w, before => $_ for \&before, \&before2, \&before3;
+@tags = ();
+$w->();
+is_deeply \@tags, [qw(before3 before2 before)], ":before order (subroutine_modifier) (@tags)";
+
+
+# the order of after modifier
+$w = modify_subroutine \&foo, after => [\&after, \&after2, \&after3];
+@tags = ();
+$w->();
+is_deeply \@tags, [qw(after after2 after3)], ':after order (modify_subroutine)';
+
+$w = modify_subroutine \&foo;
+subroutine_modifier $w, after => \&after, \&after2, \&after3;
+@tags = ();
+$w->();
+is_deeply \@tags, [qw(after after2 after3)], ':after order (subroutine_modifier)';
+
+$w = modify_subroutine \&foo;
+subroutine_modifier $w, after => $_ for \&after, \&after2, \&after3;
+@tags = ();
+$w->();
+is_deeply \@tags, [qw(after after2 after3)], ":after order (subroutine_modifier) (@tags)";
+
+
+# Moose compatibility
+$w = modify_subroutine \&foo;
+subroutine_modifier $w, before => $_ for \&before1, \&before2, \&before3;
+subroutine_modifier $w, around => $_ for \&around1, \&around2, \&around3;
+subroutine_modifier $w, after  => $_ for \&after1,  \&after2,  \&after3;
+
+is_deeply [subroutine_modifier $w, 'before'], [\&before3, \&before2, \&before1], 'get before modifiers';
+is_deeply [subroutine_modifier $w, 'around'], [\&around3, \&around2, \&around1], 'get around modifiers';
+is_deeply [subroutine_modifier $w, 'after' ], [\&after1,  \&after2,  \&after3 ], 'get after  modifiers';
+
+# Copying possilbility
+$w = modify_subroutine \&foo,
+	before => [subroutine_modifier $w, 'before'],
+	around => [subroutine_modifier $w, 'around'],
+	after  => [subroutine_modifier $w, 'after' ];
+is_deeply [subroutine_modifier $w, 'before'], [\&before3, \&before2, \&before1], 'copy before modifiers';
+is_deeply [subroutine_modifier $w, 'around'], [\&around3, \&around2, \&around1], 'copy around modifiers';
+is_deeply [subroutine_modifier $w, 'after' ], [\&after1,  \&after2,  \&after3 ], 'copy after  modifiers';
+
+# Contexts
+
+
+sub get_context{
+	push @tags,  wantarray    ? 'list'
+	: defined(wantarray) ? 'scalar'
+	:                      'void';
+}
+
+$w = modify_subroutine(\&foo, around => [\&get_context]);
+
+@tags = ();
+() = $w->();
+is_deeply \@tags, [qw(list)], 'list context in around';
+
+@tags = ();
+scalar $w->();
+is_deeply \@tags, [qw(scalar)], 'scalar context in around';
+
+@tags = ();
+$w->();
+is_deeply \@tags, [qw(void)], 'void context in around';
 
 # Modifier's args
 
@@ -152,23 +214,32 @@ SKIP:{
 
 	@tags = ();
 	for(1 .. 10){
-		my $gbefore = Scope::Guard->new(\&before);
-		my $gafter  = Scope::Guard->new(\&after);
+		my $gbefore = Scope::Guard->new(sub{ push @tags, 'before' });
+		my $garound = Scope::Guard->new(sub{ push @tags, 'around' });
+		my $gafter  = Scope::Guard->new(sub{ push @tags, 'after'  });
 
-		my $w = modify_subroutine \&foo, before => [sub{ $gbefore }], after => [sub{ $gafter }]; # makes closures
+		my $w = modify_subroutine \&foo,
+			before => [sub{ $gbefore }], # encloses guard objects
+			around => [sub{ $gafter }],
+			after  => [sub{ $gafter }];
 	}
-	is_deeply [sort @tags], [sort((qw(after before)) x 10)], 'closed values are released';
+	is_deeply [sort @tags], [sort((qw(after around before)) x 10)], 'closed values are released';
 
 	@tags = ();
 	my $i = 0;
 	for(1 .. 10){
-		my $gbefore = Scope::Guard->new(\&before);
-		my $gafter  = Scope::Guard->new(\&after);
+		my $gbefore = Scope::Guard->new(sub{ push @tags, 'before' });
+		my $garound = Scope::Guard->new(sub{ push @tags, 'around' });
+		my $gafter  = Scope::Guard->new(sub{ push @tags, 'after'  });
 
-		my $w = modify_subroutine \&foo, before => [sub{ $gbefore }], after => [sub{ $gafter }];
+		my $w = modify_subroutine \&foo,
+			before => [sub{ $gbefore }], # encloses guard objects
+			around => [sub{ $gafter }],
+			after  => [sub{ $gafter }];
+
 		$w->(Scope::Guard->new( sub{ $i++ } ));
 	}
-	is_deeply [sort @tags], [sort((qw(after before)) x 10)], '... called and released';
+	is_deeply [sort @tags], [sort((qw(after around before)) x 10)], '... called and released';
 	is $i, 10, '... and the argument is also released';
 }
 
@@ -199,14 +270,7 @@ throws_ok{
 throws_ok{
 	subroutine_modifier($w, undef);
 } qr/Validation failed:.* a modifier property/;
-throws_ok{
-	subroutine_modifier(\&foo, 'original');
-} qr/Validation failed:.* a modified subroutine/;
 
 throws_ok{
 	subroutine_modifier($w, before => 'foo');
 } qr/Validation failed:.* a CODE reference/;
-
-throws_ok{
-	subroutine_modifier($w, original => \&foo);
-} qr/Cannot reset the original subroutine/;

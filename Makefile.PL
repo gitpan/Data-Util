@@ -16,7 +16,7 @@ test_requires 'Test::Exception' => 0.27;
 
 test_requires 'Scope::Guard';
 
-author_tests 'xt';
+author_tests 'xt', 'author/t';
 
 my $use_xs = can_cc();
 

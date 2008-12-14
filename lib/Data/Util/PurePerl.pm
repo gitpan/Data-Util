@@ -187,7 +187,7 @@ sub neat{
 		return overload::StrVal($s);
 	}
 	elsif(defined $s){
-		return $s   if is_number($s);
+		return "$s" if is_number($s);
 		return "$s" if is_glob_ref(\$s);
 
 		require B;
@@ -267,7 +267,6 @@ sub uninstall_subroutine {
 		delete $stash->{$name};
 
 		my $newglob = do{ no strict 'refs'; \*{$package . '::' . $name} }; # vivify
-		delete $stash->{$glob};
 
 		# copy all the slot except for CODE
 		foreach my $slot( qw(SCALAR ARRAY HASH IO FORMAT) ){
@@ -367,18 +366,15 @@ BEGIN{
 		@around = map{ code_ref $_ } @{array_ref $args{around}} if exists $args{around};
 		@after  = map{ code_ref $_ } @{array_ref $args{after}}  if exists $args{after};
 
-		@before = reverse @before; # last-defined-first-called
-
 		my %props = (
 			before      => \@before,
 			around      => \@around,
 			after       => \@after,
-			original    => $code,
 			current_ref => \$code,
 		);
 
 		#$code = curry($_, (my $tmp = $code), *_) for @around;
-		for my $ar(@around){
+		for my $ar(reverse @around){
 			my $base = $code;
 			$code = sub{ $ar->($base, @_) };
 		}
@@ -415,7 +411,7 @@ END_CXT
 		return $modified;
 	}
 
-	my %valid_modifiers = map{ $_ => undef } qw(before around after original);
+	my %valid_modifiers = map{ $_ => undef } qw(before around after);
 
 	sub subroutine_modifier{
 		my $modified = code_ref shift;
@@ -433,32 +429,24 @@ END_CXT
 		(is_string($name) && exists $valid_modifiers{$name}) or _fail('a modifier property', $name);
 
 
-		if($name eq 'original'){
-			if(@subs){
-				_croak('Cannot reset the original subroutine');
+		my $property = $props_ref->{$name};
+		if(@subs){
+			if($name eq 'after'){
+				push @{$property}, map{ code_ref $_ } @subs;
 			}
-			return $props_ref->{$name};
-		}
-		else{ # before, around, after
-			my $property = $props_ref->{$name};
-			if(@subs){
-				if($name eq 'before'){
-					unshift @{$property}, reverse map{ code_ref $_ } @subs;
-				}
-				else{
-					push @{$property}, map{ code_ref $_ } @subs;
-				}
+			else{
+				unshift @{$property}, reverse map{ code_ref $_ } @subs;
+			}
 
-				if($name eq 'around'){
-					my $current_ref = $props_ref->{current_ref};
-					for my $ar(@subs){
-						my $base = $$current_ref;
-						$$current_ref = sub{ $ar->($base, @_) };
-					}
+			if($name eq 'around'){
+				my $current_ref = $props_ref->{current_ref};
+				for my $ar(reverse @subs){
+					my $base = $$current_ref;
+					$$current_ref = sub{ $ar->($base, @_) };
 				}
 			}
-			return @{$property} if defined wantarray;
 		}
+		return @{$property} if defined wantarray;
 
 		return;
 	}

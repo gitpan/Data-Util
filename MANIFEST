@@ -37,6 +37,7 @@ lib/Data/Util/JA.pod
 lib/Data/Util/PurePerl.pm
 Makefile.PL
 MANIFEST			This list of files
+MANIFEST.SKIP
 META.yml
 misc_scalar.c
 mro_compat.h

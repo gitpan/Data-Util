@@ -36,10 +36,6 @@
 
 
 #define neat(x) du_neat(aTHX_ x)
-#define neat_cat(dsv, x, level) du_neat_cat(aTHX_ dsv, x, level)
-
-void
-du_neat_cat(pTHX_ SV* const dsv, SV* x, const int level);
 
 const char*
 du_neat(pTHX_ SV* x);
@@ -52,7 +48,6 @@ enum{
 	M_BEFORE,
 	M_AROUND,
 	M_AFTER,
-	M_ORIGINAL,
 	M_CURRENT,
 	M_LENGTH
 };

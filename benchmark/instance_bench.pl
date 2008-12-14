@@ -9,10 +9,12 @@ use Common;
 
 use Data::Util qw(:all);
 use Params::Util qw(_INSTANCE); # 0.35 provides a XS implementation
+use Scalar::Util qw(blessed);
 
 signeture
 	'Data::Util'   => \&is_instance,
 	'Params::Util' => \&_INSTANCE,
+	'Scalar::Util' => \&blessed,
 ;
 
 BEGIN{
@@ -46,9 +48,9 @@ foreach my $x (Foo->new, Foo::X::X::X->new, Unrelated->new, undef, {}){
 	my $i = 0;
 
 	cmpthese -1 => {
-		'ref&eval{}' => sub{
+		'blessed' => sub{
 			for(1 .. 10){
-				$i++ if ref($x) && eval{ $x->isa('Foo') };
+				$i++ if blessed($x) && $x->isa('Foo');
 			}
 		},
 		'_INSTANCE' => sub{

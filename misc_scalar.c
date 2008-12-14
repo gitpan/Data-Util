@@ -20,7 +20,7 @@ is_identifier_cstr(const char* pv, const STRLEN len){
 	return FALSE;
 }
 
-void
+static void
 du_neat_cat(pTHX_ SV* const dsv, SV* x, const int level){
 
 	if(level > 2){
@@ -104,13 +104,26 @@ du_neat_cat(pTHX_ SV* const dsv, SV* x, const int level){
 		if(SvPOKp(x)){
 			STRLEN cur;
 			char* const pv = SvPV(x, cur);
-			SV* sv = newSV(PV_LIMIT + 5);
+			SV* const sv = newSV(PV_LIMIT + 5);
 			sv_2mortal(sv);
 			pv_display(sv, pv, cur, cur, PV_LIMIT);
 			sv_catsv(dsv, sv);
 		}
 		else{
-			Perl_sv_catpvf(aTHX_ dsv, "%"NVgf, SvNV(x));
+			NV const nv = SvNV(x);
+
+			if(nv == NV_INF){
+				sv_catpvs(dsv, "+Inf");
+			}
+			else if(nv == -NV_INF){
+				sv_catpvs(dsv, "-Inf");
+			}
+			else if(Perl_isnan(nv)){
+				sv_catpvs(dsv, "NaN");
+			}
+			else{
+				Perl_sv_catpvf(aTHX_ dsv, "%"NVgf, nv);
+			}
 		}
 	}
 	else{
