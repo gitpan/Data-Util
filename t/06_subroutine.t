@@ -143,9 +143,9 @@ throws_ok{
 	install_subroutine();
 } qr/^Usage: /;
 
-throws_ok{
+dies_ok{
 	Foo->install_subroutine('foo');
-} qr/^Odd number of arguments/;
+};
 
 throws_ok{
 	Data::Util::install_subroutine(undef, foo => \&foo);
@@ -157,10 +157,10 @@ throws_ok{
 
 throws_ok{
 	Foo->install_subroutine(undef, sub{});
-} qr/subroutine name/;
+} qr/\b name\b /xms;
 throws_ok{
 	Foo->install_subroutine([], sub{});
-} qr/subroutine name/;
+} qr/\b name\b /xms;
 
 # multiple installation
 

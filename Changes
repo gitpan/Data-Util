@@ -1,5 +1,14 @@
 Revision history for Data-Util
 
+0.44 Sun Dec 21 13:06:36 2008
+	- add get_code_ref() for do{ no strict 'refs'; *{$pkg.'::'.$name}{CODE} }
+	- change install/uninstall_subroutine() to accept single hash parameter
+		(e.g. install_subroutine($pkg, { name => \&subr })
+	- optimize mkopt() when a HASH ref is supplied as the option list
+	- fix possible memory leaks in mkopt()
+	- fix documentation
+	- fix "Insecure dependency while -T" with DATA_UTIL_PUREPERL=1
+
 0.43 Sun Dec 14 13:37:43 2008
 	- fix modifer's order of modify_subroutine()/subroutine_modifier()
 		to be compatible with Moose

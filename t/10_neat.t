@@ -3,7 +3,7 @@
 use warnings 'FATAL';
 
 use strict;
-use Test::More tests => 17;
+use Test::More tests => 18;
 
 use Tie::Scalar;
 use Tie::Array;
@@ -28,6 +28,8 @@ ok neat({'!foo' => '!bar'});
 unlike neat({foo => 'bar', baz => 'bax'}), qr/undef/;
 like neat(\&foo), qr/^\\&main::foo\(.*\)$/;
 like neat(Foo->new(42)), qr/^Foo=HASH\(.+\)$/, 'for an overloaded object';
+
+like neat(qr/foo/), qr/foo/, 'neat(qr/foo/) includes "foo"';
 
 ok neat(+9**9**9), '+Inf';
 ok neat(-9**9**9), '-Inf';

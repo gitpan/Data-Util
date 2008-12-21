@@ -1,7 +1,7 @@
 #!perl -w
 
 use strict;
-use Test::More tests => 52;
+use Test::More tests => 55;
 use Test::Exception;
 
 use constant HAS_SCOPE_GUARD => eval{ require Scope::Guard };
@@ -274,3 +274,16 @@ throws_ok{
 throws_ok{
 	subroutine_modifier($w, before => 'foo');
 } qr/Validation failed:.* a CODE reference/;
+
+
+throws_ok{
+	subroutine_modifier($w, foo => sub{});
+} qr/Validation failed:.* a modifier property/;
+
+
+throws_ok{
+	subroutine_modifier(\&foo, 'before');
+} qr/Validation failed:.* a modified subroutine/;
+throws_ok{
+	subroutine_modifier(\&foo, before => sub{});
+} qr/Validation failed:.* a modified subroutine/;

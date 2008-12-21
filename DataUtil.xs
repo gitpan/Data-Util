@@ -9,6 +9,12 @@
 
 #define is_special_nv(nv) (nv == NV_INF || nv == -NV_INF || Perl_isnan(nv))
 
+#ifdef PERL_DONT_CREATE_GVSV
+#define my_GV_with_SV(gv) GvSV(gv)
+#else
+#define my_GV_with_SV(gv) (GvSV(gv) && SvREFCNT(GvSV(gv)) > 1 /* refered somewhere */)
+#endif
+
 typedef struct{
 	GV* universal_isa;
 
@@ -95,40 +101,6 @@ my_fail(pTHX_ const char* const name, SV* value){
 	my_croak(aTHX_ "Validation failed: you must supply %s, not %s", name, neat(value));
 }
 
-static bool
-my_has_amagic_converter(pTHX_ SV* const sv, const my_type_t t){
-	const AMT* amt;
-	int o = 0;
-
-	if(!SvAMAGIC(sv)) return FALSE;
-
-	amt = (AMT*)mg_find((SV*)SvSTASH(SvRV(sv)), PERL_MAGIC_overload_table)->mg_ptr;
-	assert(amt);
-	assert(AMT_AMAGIC(amt));
-
-	switch(t){
-	case T_SV:
-		o = to_sv_amg;
-		break;
-	case T_AV:
-		o = to_av_amg;
-		break;
-	case T_HV:
-		o = to_hv_amg;
-		break;
-	case T_CV:
-		o = to_cv_amg;
-		break;
-	case T_GV:
-		o = to_gv_amg;
-		break;
-	default:
-		NotReached;
-	}
-
-	return amt->table[o] ? TRUE : FALSE;
-}
-
 static int
 my_check_type_primitive(pTHX_ SV* const sv, const my_type_t t){
 	if(!SvOK(sv) || SvROK(sv) || isGV(sv)){
@@ -182,6 +154,40 @@ my_check_type_primitive(pTHX_ SV* const sv, const my_type_t t){
 	}
 
 	return FALSE;
+}
+
+static bool
+my_has_amagic_converter(pTHX_ SV* const sv, const my_type_t t){
+	const AMT* amt;
+	int o = 0;
+
+	if(!SvAMAGIC(sv)) return FALSE;
+
+	amt = (AMT*)mg_find((SV*)SvSTASH(SvRV(sv)), PERL_MAGIC_overload_table)->mg_ptr;
+	assert(amt);
+	assert(AMT_AMAGIC(amt));
+
+	switch(t){
+	case T_SV:
+		o = to_sv_amg;
+		break;
+	case T_AV:
+		o = to_av_amg;
+		break;
+	case T_HV:
+		o = to_hv_amg;
+		break;
+	case T_CV:
+		o = to_cv_amg;
+		break;
+	case T_GV:
+		o = to_gv_amg;
+		break;
+	default:
+		NotReached;
+	}
+
+	return amt->table[o] ? TRUE : FALSE;
 }
 
 #define check_type(sv, t) my_check_type(aTHX_ sv, t)
@@ -299,7 +305,7 @@ my_canon_pkg(pTHX_ const char* name){
 
 static int
 my_isa_lookup(pTHX_ HV* const stash, const char* klass_name){
-	const char* const stash_name = my_canon_pkg(aTHX_ HvNAME(stash));
+	const char* const stash_name = my_canon_pkg(aTHX_ HvNAME_get(stash));
 
 	klass_name = my_canon_pkg(aTHX_ klass_name);
 
@@ -409,58 +415,79 @@ my_type_isa(pTHX_ SV* const sv, SV* const type){
 	return my_instance_of(aTHX_ sv, type);
 }
 
-static SV*
-my_mkopt(pTHX_ SV* const opt_list, SV* const moniker, const bool require_unique, SV* must_be, const my_type_t result_type){
-	SV* ret;
-	AV* opt_av    = NULL;
-	AV* result_av = NULL;
-	HV* result_hv = NULL;
+static void
+my_opt_add(pTHX_
+	AV* const result_av, HV* const result_hv, SV* const moniker,
+	SV* const name, SV* const value,
+	bool const with_validation,
+	SV* vsv,
+	AV* vav,
+	HV* const vhv ){
 
-	I32 i;
-	I32 len;
-	HV* seen = NULL; /* uniqueness check */
-	HV* vhv  = NULL; /* validator HV */
-	AV* vav  = NULL; /* validator AV */
-	const bool with_validation = SvOK(must_be) ? TRUE : FALSE;
+	if(with_validation && SvOK(value)){
+		if(vhv){
+			HE* const he = hv_fetch_ent(vhv, name, FALSE, 0U);
+			vav = NULL;
+			if(he){
+				SV* const sv = hv_iterval(vhv, he);
+				if(check_type(sv, T_AV)){
+					vav = deref_av(sv);
+				}
+				else if(SvOK(sv)){
+					vsv = sv;
+				}
+				else{
+					goto store_pair;
+				}
+			}
+			else{
+				goto store_pair;
+			}
+		}
 
-	if(result_type == T_AV){
-		result_av = newAV();
-		ret = (SV*)result_av;
-	}
-	else{
-		result_hv = newHV();
-		ret = (SV*)result_hv;
-	}
-
-	if(check_type(opt_list, T_HV)){
-		HV* const hv = deref_hv(opt_list);
-		char* key;
-		I32 keylen;
-		SV* val;
-
-		hv_iterinit(hv);
-		opt_av = newAV();
-		sv_2mortal((SV*)opt_av);
-
-		while((val = hv_iternextsv(hv, &key, &keylen))){
-			av_push(opt_av, newSVpvn(key, keylen));
-			if(SvROK(val)){
-				SvREFCNT_inc_simple_void_NN(val);
-				av_push(opt_av, val);
+		if(vav){
+			I32 const len = av_len(vav)+1;
+			I32 i;
+			for(i = 0; i < len; i++){
+				if(type_isa(value, *av_fetch(vav, i, TRUE))){
+					break;
+				}
+			}
+			if(i == len) goto validation_failed;
+		}
+		else{
+			if(!type_isa(value, vsv)){
+				validation_failed:
+				my_croak(aTHX_ "%s-ref values are not valid for %"SVf" in %"SVf" opt list",
+					sv_reftype(SvRV(value), TRUE), name, moniker);
 			}
 		}
 	}
-	else if(!SvOK(opt_list)){
-		goto end;
-	}
-	else{
-		opt_av = deref_av(opt_list);
-	}
 
-	if(require_unique){
-		seen = newHV();
-		sv_2mortal((SV*)seen);
+	store_pair:
+	if(result_av){ /* push @result, [$name => $value] */
+		SV* pair[2];
+
+		pair[0] = name;
+		pair[1] = value;
+
+		av_push(result_av, newRV_noinc((SV*) av_make(2, pair)));
 	}
+	else{ /* $result{$name} = $value */
+		hv_store_ent(result_hv, name, newSVsv(value), 0U);
+	}
+}
+
+static SV*
+my_mkopt(pTHX_ SV* const opt_list, SV* const moniker, const bool require_unique, SV* must_be, const my_type_t result_type){
+	SV* ret;
+	AV* result_av = NULL;
+	HV* result_hv = NULL;
+
+	HV* vhv  = NULL; /* validator HV */
+	AV* vav  = NULL; /* validator AV */
+	bool const with_validation = SvOK(must_be) ? TRUE : FALSE;
+
 
 	if(with_validation){
 		if(check_type(must_be, T_HV)){
@@ -474,90 +501,81 @@ my_mkopt(pTHX_ SV* const opt_list, SV* const moniker, const bool require_unique,
 		}
 	}
 
-	len = av_len(opt_av) + 1;
-	for(i = 0; i < len; i++){
-		SV* const name = my_string(aTHX_ *av_fetch(opt_av, i, TRUE), "an option name");
-		SV* value;
+	if(result_type == T_AV){
+		result_av = newAV();
+		ret = (SV*)result_av;
+	}
+	else{
+		result_hv = newHV();
+		ret = (SV*)result_hv;
+	}
+	sv_2mortal(ret);
+
+	if(check_type(opt_list, T_AV)){
+		HV* seen = NULL;
+		AV* const opt_av = deref_av(opt_list);
+		I32 const len    = av_len(opt_av) + 1;
+		I32 i;
 
 		if(require_unique){
-			HE* const he    = hv_fetch_ent(seen, name, TRUE, 0U);
-			SV* const count = hv_iterval(seen, he);
-			if(SvTRUE(count)){
-				my_croak(aTHX_ "Multiple definitions provided for %"SVf" in %"SVf" opt list", name, moniker);
-			}
-			sv_inc(count); /* count++ */
+			seen = newHV();
+			sv_2mortal((SV*)seen);
 		}
 
-		if( (i+1) == len ){ /* last */
-			value = &PL_sv_undef;
-		}
-		else{
-			value = *av_fetch(opt_av, i+1, TRUE);
-			if(SvTYPE(value) == SVt_NULL){
-				value = &PL_sv_undef;
-				i++;
+		for(i = 0; i < len; i++){
+			SV* const name = my_string(aTHX_ *av_fetch(opt_av, i, TRUE), "an option name");
+			SV* value;
+
+			if(require_unique){
+				HE* const he    = hv_fetch_ent(seen, name, TRUE, 0U);
+				SV* const count = hv_iterval(seen, he);
+				if(SvTRUE(count)){
+					my_croak(aTHX_ "Multiple definitions provided for %"SVf" in %"SVf" opt list", name, moniker);
+				}
+				sv_inc(count); /* count++ */
 			}
-			else if(SvROK(value)){
-				i++;
-			}
-			else{
+
+			if( (i+1) == len ){ /* last */
 				value = &PL_sv_undef;
 			}
-		}
-
-		if(with_validation && SvOK(value)){
-			if(vhv){
-				HE* const he = hv_fetch_ent(vhv, name, FALSE, 0U);
-				vav = NULL;
-				if(he){
-					SV* const sv = hv_iterval(vhv, he);
-					if(check_type(sv, T_AV)){
-						vav = deref_av(sv);
-					}
-					else if(SvOK(sv)){
-						must_be = sv;
-					}
-					else{
-						goto store_pair;
-					}
-				}else{
-					goto store_pair;
-				}
-			}
-
-			if(vav){
-				I32 const l = av_len(vav)+1;
-				I32 j;
-				for(j = 0; j < l; j++){
-					if(type_isa(value, *av_fetch(vav, j, TRUE))){
-						break;
-					}
-				}
-				if(j == l) goto validation_failed;
-			}
 			else{
-				if(!type_isa(value, must_be)){
-					validation_failed:
-					my_croak(aTHX_ "%s-ref values are not valid for %"SVf" in %"SVf" opt list",
-						sv_reftype(SvRV(value), TRUE), name, moniker);
+				value = *av_fetch(opt_av, i+1, TRUE);
+				if(SvROK(value) || !SvOK(value)){
+					i++;
+				}
+				else{
+					value = &PL_sv_undef;
 				}
 			}
-		}
 
-		store_pair:
-		if(result_type == T_AV){ /* push @result, [$name => $value] */
-			AV* const pair = newAV();
-			av_store(pair, 0, newSVsv(name));
-			av_store(pair, 1, newSVsv(value));
-			av_push(result_av, newRV_noinc((SV*)pair));
-		}
-		else{ /* $result{$name} = $value */
-			hv_store_ent(result_hv, name, newSVsv(value), 0U);
+			my_opt_add(aTHX_ result_av, result_hv, moniker, name, value,
+				with_validation, must_be, vav, vhv);
 		}
 	}
+	else if(check_type(opt_list, T_HV)){
+		HV* const opt_hv = deref_hv(opt_list);
+		I32 keylen;
+		char* key;
+		SV* value;
+		SV* const name = sv_newmortal();
 
-	end:
-	return newRV_noinc(ret);
+		hv_iterinit(opt_hv);
+
+		while((value = hv_iternextsv(opt_hv, &key, &keylen))){
+			sv_setpvn(name, key, keylen); /* copied in my_opt_add */
+
+			if(!SvROK(value) && SvOK(value)){
+				value = &PL_sv_undef;
+			}
+			my_opt_add(aTHX_ result_av, result_hv, moniker, name, value,
+				with_validation, must_be, vav, vhv);
+		}
+	}
+	else if(SvOK(opt_list)){
+		my_fail(aTHX_ "an ARRAY or HASH reference", opt_list);
+	}
+
+	return newRV_inc(ret);
 }
 
 /*
@@ -603,6 +621,90 @@ my_gv_setsv(pTHX_ GV* const gv, SV* const sv){
 }
 
 static void
+my_install_sub(pTHX_ HV* const stash, const char* const name, STRLEN const namelen, SV* code_ref){
+	CV* const code         = deref_cv(code_ref);
+	GV* const gv           = (GV*)*hv_fetch(stash, name, namelen, TRUE);
+
+	if(!isGV(gv)) gv_init(gv, stash, name, namelen, GV_ADDMULTI);
+
+	if(SvAMAGIC(code_ref)){
+		code_ref = newRV_inc((SV*)code);
+		sv_2mortal(code_ref);
+	}
+
+	sv_setsv_mg((SV*)gv, code_ref); /* *foo = \&bar */
+
+	if(CvANON(code)
+		&& CvGV(code)                            /* under construction? */
+		&& isGV(CvGV(code))                      /* released? */
+		&& strEQ(GvNAME(CvGV(code)), "__ANON__") /* Sub::Name doesn't turn CvANON off. */){
+
+		/* save the original gv on magic slot */
+		sv_magicext((SV*)code, (SV*)CvGV(code), PERL_MAGIC_ext, &subr_name_vtbl, NULL, 0);
+
+		/* rename cv with gv */
+		CvGV(code) = gv;
+		CvANON_off(code);
+	}
+
+}
+
+static void
+my_uninstall_sub(pTHX_ HV* const stash, const char* const name, STRLEN const namelen, SV* const specified_code_ref){
+	GV** const gvp = (GV**)hv_fetch(stash, name, namelen, FALSE);
+
+	if(gvp){
+		GV* const gv = *gvp;
+		CV* const specified_code = SvOK(specified_code_ref) ? deref_cv(specified_code_ref) : NULL;
+		GV* newgv;
+		CV* code;
+
+		if(!isGV(gv)){ /* a subroutine stub or special constant*/
+			if(SvROK((SV*)gv) && ckWARN(WARN_MISC)){
+				Perl_warner(aTHX_ packWARN(WARN_MISC), "Constant subroutine %s uninstalled", name);
+			}
+			hv_delete(stash, name, namelen, G_DISCARD);
+			return;
+		}
+
+		if(!(code = GvCVu(gv))){
+			return;
+		}
+
+		/* when an uninstalled subroutine is supplied ... */
+		if( specified_code && specified_code != code ){
+			return; /* skip */
+		}
+
+		if(CvCONST(code) && ckWARN(WARN_MISC)){
+			Perl_warner(aTHX_ packWARN(WARN_MISC), "Constant subroutine %s uninstalled", name);
+		}
+
+		hv_delete(stash, name, namelen, G_DISCARD);
+
+		if(SvREFCNT(gv) == 0 || !(my_GV_with_SV(gv)
+			|| GvAV(gv)
+			|| GvHV(gv)
+			|| GvIO(gv)
+			|| GvFORM(gv))){
+
+			return; /* no need to retrieve gv */
+		}
+
+		newgv = (GV*)*hv_fetch(stash, name, namelen, TRUE);
+		gv_init(newgv, stash, name, namelen, GV_ADDMULTI); /* vivify */
+
+		/* restore all slots other than GvCV */
+
+		if(GvSV(gv))   my_gv_setsv(aTHX_ newgv,      GvSV(gv));
+		if(GvAV(gv))   my_gv_setsv(aTHX_ newgv, (SV*)GvAV(gv));
+		if(GvHV(gv))   my_gv_setsv(aTHX_ newgv, (SV*)GvHV(gv));
+		if(GvIO(gv))   my_gv_setsv(aTHX_ newgv, (SV*)GvIOp(gv));
+		if(GvFORM(gv)) my_gv_setsv(aTHX_ newgv, (SV*)GvFORM(gv));
+	}
+}
+
+static void
 initialize_my_cxt(pTHX_ my_cxt_t* const cxt){
 	cxt->universal_isa = CvGV(get_cv("UNIVERSAL::isa", GV_ADD));
 	SvREFCNT_inc_simple_void_NN(cxt->universal_isa);
@@ -610,6 +712,7 @@ initialize_my_cxt(pTHX_ my_cxt_t* const cxt){
 	cxt->croak = NULL;
 }
 
+#define UNDEF &PL_sv_undef
 
 
 MODULE = Data::Util		PACKAGE = Data::Util
@@ -774,34 +877,29 @@ PREINIT:
 CODE:
 	stash = gv_stashsv(my_string(aTHX_ into, "a package name"), TRUE);
 
-	if( ((items-1) % 2) != 0 ){
-		my_croak(aTHX_ "Odd number of arguments for %s", GvNAME(CvGV(cv)));
+	if(items == 2){
+		HV* const hv = deref_hv(ST(1));
+		I32   namelen;
+		char* name;
+		SV* code_ref;
+
+		hv_iterinit(hv);
+		while((code_ref = hv_iternextsv(hv, &name, &namelen))){
+			my_install_sub(aTHX_ stash, name, namelen, code_ref);
+		}
 	}
-
-	for(i = 1; i < items; i += 2){
-		SV* const as = my_string(aTHX_ ST(i), "a subroutine name");
-		STRLEN namelen;
-		const char* const name = SvPV_const(as, namelen);
-		SV* code_ref           = ST(i+1);
-		CV* const code         = deref_cv(code_ref);
-		GV* const gv           = (GV*)*hv_fetch(stash, name, namelen, TRUE);
-
-		if(!isGV(gv)) gv_init(gv, stash, name, namelen, GV_ADDMULTI); /* vivify */
-
-		if(SvAMAGIC(code_ref)){
-			code_ref = newRV_inc((SV*)code);
-			sv_2mortal(code_ref);
+	else{
+		if( ((items-1) % 2) != 0 ){
+			my_croak(aTHX_ "Odd number of arguments for %s", GvNAME(CvGV(cv)));
 		}
 
-		sv_setsv_mg((SV*)gv, code_ref); /* *foo = \&bar */
+		for(i = 1; i < items; i += 2){
+			SV* const as           = my_string(aTHX_ ST(i), "a subroutine name");
+			STRLEN namelen;
+			const char* const name = SvPV_const(as, namelen);
+			SV* const code_ref     = ST(i+1);
 
-		if(CvANON(code) && CvGV(code) && strEQ(GvNAME(CvGV(code)), "__ANON__") /* Sub::Name doesn't turn CvANON off. */){
-			/* save the original gv on magic slot */
-			sv_magicext((SV*)code, (SV*)CvGV(code), PERL_MAGIC_ext, &subr_name_vtbl, NULL, 0);
-
-			/* rename cv with gv */
-			CvGV(code) = gv;
-			CvANON_off(code);
+			my_install_sub(aTHX_ stash, name, namelen, code_ref);
 		}
 	}
 
@@ -815,58 +913,33 @@ CODE:
 	stash = gv_stashsv(my_string(aTHX_ package, "a package name"), FALSE);
 	if(!stash) XSRETURN_EMPTY;
 
-	for(i = 1; i < items; i++){
-		SV* const namesv = my_string(aTHX_ ST(i), "a subroutine name");
-		STRLEN namelen;
-		const char* const name = SvPV_const(namesv, namelen);
-		GV** const gvp = (GV**)hv_fetch(stash, name, namelen, FALSE);
-		GV* gv;
-		CV* code;
-		CV* specified_code;
+	if(items == 2 && SvROK(ST(1))){
+		HV* const hv = deref_hv(ST(1));
+		I32   namelen;
+		char* name;
+		SV* specified_code_ref;
 
-		if( (i+1) < items && check_type(ST(i+1), T_CV) ){
-			i++;
-			specified_code = deref_cv(ST(i));
+		hv_iterinit(hv);
+		while((specified_code_ref = hv_iternextsv(hv, &name, &namelen))){
+			my_uninstall_sub(aTHX_ stash, name, namelen, specified_code_ref);
 		}
-		else{
-			specified_code = NULL;
-		}
+	}
+	else{
+		for(i = 1; i < items; i++){
+			SV* const namesv = my_string(aTHX_ ST(i), "a subroutine name");
+			STRLEN namelen;
+			const char* const name = SvPV_const(namesv, namelen);
+			SV* specified_code_ref;
 
-		if(!gvp) continue;
-
-		gv = *gvp;
-
-		if(!isGV(gv)){ /* a subroutine stub or special constant*/
-			if(SvROK((SV*)gv) && ckWARN(WARN_MISC)){
-				Perl_warner(aTHX_ packWARN(WARN_MISC), "Constant subroutine %s uninstalled", name);
+			if( (i+1) < items && SvROK(ST(i+1)) ){
+				i++;
+				specified_code_ref = ST(i);
 			}
-			hv_delete(stash, name, namelen, G_DISCARD);
-			continue;
-		}
-
-		if((code = GvCVu(gv))){
-			GV* newgv;
-
-			/* when an uninstalled subroutine is supplied ... */
-			if( specified_code && specified_code != code ){
-				continue; /* skip */
+			else{
+				specified_code_ref = &PL_sv_undef;
 			}
 
-			if(CvCONST(code) && ckWARN(WARN_MISC)){
-				Perl_warner(aTHX_ packWARN(WARN_MISC), "Constant subroutine %s uninstalled", name);
-			}
-
-			hv_delete(stash, name, namelen, G_DISCARD);
-
-			newgv = (GV*)*hv_fetch(stash, name, namelen, TRUE);
-			gv_init(newgv, stash, name, namelen, GV_ADDMULTI); /* vivify */
-
-			/* restore all slots other than GvCV */
-			if(GvSV(gv))   my_gv_setsv(aTHX_ newgv,      GvSV(gv));
-			if(GvAV(gv))   my_gv_setsv(aTHX_ newgv, (SV*)GvAV(gv));
-			if(GvHV(gv))   my_gv_setsv(aTHX_ newgv, (SV*)GvHV(gv));
-			if(GvIO(gv))   my_gv_setsv(aTHX_ newgv, (SV*)GvIOp(gv));
-			if(GvFORM(gv)) my_gv_setsv(aTHX_ newgv, (SV*)GvFORM(gv));
+			my_uninstall_sub(aTHX_ stash, name, namelen, specified_code_ref);
 		}
 	}
 	mro_method_changed_in(stash);
@@ -876,24 +949,77 @@ get_code_info(code)
 	CV* code
 PREINIT:
 	GV* gv;
+	HV* stash;
 PPCODE:
-	gv = CvGV(code);
-	if(gv){
-		const char* const stash_name = HvNAME(GvSTASH(gv));
-
-		if(!stash_name) XSRETURN_EMPTY;
+	if( (gv = CvGV(code)) && isGV_with_GP(gv)
+		&& (stash = (GvSTASH(gv))) && HvNAME_get(stash) ){
 
 		if(GIMME_V == G_ARRAY){
 			EXTEND(SP, 2);
-			mPUSHp(stash_name, strlen(stash_name));
+			mPUSHp(HvNAME_get(stash), HvNAMELEN_get(stash));
 			mPUSHp(GvNAME(gv), GvNAMELEN(gv));
 		}
 		else{
-			SV* const sv = newSVpvf("%s::%*s", stash_name, (int)GvNAMELEN(gv), GvNAME(gv));
+			SV* const sv = newSVpvf("%s::%s", HvNAME_get(stash), GvNAME(gv));
 			mXPUSHs(sv);
 		}
 	}
 
+
+SV*
+get_code_ref(package, name, ...)
+	SV* package
+	SV* name
+INIT:
+	I32 flags = 0;
+	RETVAL = &PL_sv_undef;
+CODE:
+	(void)my_string(aTHX_ package, "a package name");
+	(void)my_string(aTHX_ name,    "a subroutine name");
+
+	if(items > 2){ /* with flags */
+		I32 i;
+		for(i = 2; i < items; i++){
+			SV* const sv = my_string(aTHX_ ST(i), "a flag");
+			if(strEQ(SvPV_nolen_const(sv), "-create")){
+				flags |= GV_ADD;
+			}
+			else{
+				my_fail(aTHX_ "a flag", sv);
+			}
+		}
+	}
+
+	{
+		HV* const stash = gv_stashsv(package, flags);
+
+		if(stash){
+			STRLEN len;
+			const char* const pv = SvPV_const(name, len);
+			GV** const gvp = (GV**)hv_fetch(stash, pv, len, flags);
+			GV*  const gv  = gvp ? *gvp : NULL;
+
+			if(gv){
+				if(!isGV(gv)) gv_init(gv, stash, pv, len, GV_ADDMULTI);
+
+				if(GvCVu(gv)){
+					RETVAL = newRV_inc((SV*)GvCV(gv));
+				}
+				else if(flags & GV_ADD){
+					SV* const sv = Perl_newSVpvf(aTHX_ "%"SVf"::%"SVf, package, name);
+
+					/* from Perl_get_cvn_flags() in perl.c */
+					CV* const cv = newSUB(
+						start_subparse(FALSE, 0),
+						newSVOP(OP_CONST, 0, sv),
+						NULL, NULL);
+					RETVAL = newRV_inc((SV*)cv);
+				}
+			}
+		}
+	}
+OUTPUT:
+	RETVAL
 
 SV*
 curry(code, ...)
@@ -973,9 +1099,8 @@ CODE:
 	after  = newAV(); sv_2mortal((SV*)after );
 
 	for(i = 1; i < items; i += 2){ /* modifier_type => [subroutine(s)] */
-		SV* const mtsv = my_string(aTHX_ ST(i), "a modifier type");
-		STRLEN mt_len;
-		const char* const modifier_type = SvPV_const(mtsv, mt_len);
+		SV*         const          mtsv = my_string(aTHX_ ST(i), "a modifier type");
+		const char* const modifier_type = SvPV_nolen_const(mtsv);
 		AV*         const          subs = deref_av(ST(i+1));
 		I32         const      subs_len = av_len(subs) + 1;
 		AV* av = NULL;
@@ -1084,7 +1209,6 @@ PPCODE:
 	}
 
 
-#define UNDEF &PL_sv_undef
 
 #define mkopt(opt_list, moniker, require_unique, must_be) \
 		my_mkopt(aTHX_ opt_list, moniker, require_unique, must_be, T_AV)

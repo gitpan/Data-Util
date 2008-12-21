@@ -7,7 +7,7 @@ Data::Util::JA - データとデータ型のためのユーティリティ集
 
 =head1 VERSION
 
-This document describes Data::Util version 0.43
+This document describes Data::Util version 0.44
 
 =head1 SYNOPSIS
 
@@ -55,7 +55,8 @@ This document describes Data::Util version 0.43
 	print Foo::hello(); # Hello!
 
 	my($pkg, $name) = get_code_info(\&Foo::hello); # => ('Foo', 'hello')
-	my $fqn         = get_code_info(\&Foo::hello); # => 'Foo::bar'
+	my $fqn         = get_code_info(\&Foo::hello); # =>  'Foo::Hello'
+	my $code        = get_code_ref($fqn);          # => \&Foo::hello
 
 	uninstall_subroutine('Foo', qw(hello goodby));
 
@@ -73,12 +74,17 @@ This document describes Data::Util version 0.43
 偽であれば致命的エラーとなる機能を提供します。
 その他の関数群は，無名スカラーリファレンスの生成やシンボルテーブルの操作，
 コードリファレンスの操作などの機能を提供します。
+これらユーティリティはいずれもコードの繰り返しを避けるのに役立つはずです。
 
-このモジュールの実装はXSとPure Perl両方提供しており，Cコンパイラのある
+このモジュールはXSとPure Perl双方で実装されており，Cコンパイラのある
 環境ではXSバックエンドが，ない環境ではPure Perlバックエンドが使用されます。
 
-XSバックエンドは注意深く実装されているため非常に効率がよく，
+XSバックエンドは注意深く実装されていて非常に効率がよく，
 Pure Perlバックエンドより2倍から10倍程度高速に動作します。
+また，ほぼ全ての関数は等価のPure Perlコードをインラインで展開した
+コードよりも高速です。
+
+ディストリビューションのF<benchmark/>ディレクトリにベンチマークがあります。
 
 =head1 INTERFACE
 
@@ -138,25 +144,33 @@ I<value>に対してメソッドを起動できるかどうかをチェックし
 I<value>がプリミティブ値かどうかをチェックします。すなわち，定義済みであり，
 リファレンスではなく，型グロブでもなければ真を返します。
 
+この関数(およびC<is_string>/C<is_number()>/C<is_integer()>)は，
+オブジェクトリファレンスに対しては常に偽を返します。
+たとえI<value>が文字列化/数値化/真偽値化オーバーロードメソッドを
+持っていたとしても，それはプリミティブ値としては判断しません。
+
 この関数には検証を行う対応関数がありません。
 
 =item is_string(value)
 
-I<value>が1文字以上の内容を持つ文字列かどうかをチェックします。
+I<value>がプリミティブ値であり，
+かつ文字列化したときに1文字以上の内容を持つ値かどうかをチェックします。
 
-C<< is_value($value) && length($value) > 0 >>と同じです。
+C<< do{ is_value($value) && length($value) > 0 } >>と同じです。
 
 この関数には検証を行う対応関数がありません。
 
 =item is_number(value)
 
 I<value>が数値かどうかをチェックします。
-この「数値」とは，C<< sprintf '%g', $value >>などとしたときに警告を出さず，
-またPerlプログラム中にリテラルとしておくことができる値という意味です。
+ここでB<数値>とは，数値コンテキスト(たとえばC<< sprintf '%g', $value >>）
+で警告を出さずに数値に変換可能であり，
+かつPerlプログラム中にリテラルとしておくことができる値という意味です。
 
 すなわち，この関数はC<Scalar::Util::looks_like_number()>と異なり，
-C<"Inf">やC<"NaN">を数値として扱いません。また，数値化したときに
-警告を出さない例外であるC<"0 but true">>も数値として扱いません。
+C<Infinity>やC<NaN>はリテラルとしてプログラム中に置くことはできないため，
+数値として扱いません。また，数値化したときに警告を出さない例外である
+C<"0 but true">も同じ理由で数値として扱いません。
 
 この関数には検証を行う対応関数がありません。
 
@@ -177,7 +191,7 @@ I<value>が整数かどうかをチェックします。これはC<is_number()>�
 ただし，その結果が真であれば第一引数をそのまま返し，
 偽であれば致命的エラーとなります。
 
-これらの関数もオーバーロードマジックをチェックします。
+これらの関数もオーバーロードマジックを考慮します。
 
 =over 4
 
@@ -239,12 +253,12 @@ I<value>のコピーを参照する匿名スカラーリファレンスを生成
 =item neat(value)
 
 I<value>を表示に適するよう整形した文字列を返します。
-C<<do{ defined($value) ? qq{"$value"} : 'undef' }>>を置き換える機能
-として提供されます。
+C<< do{ defined($value) ? qq{"$value"} : 'undef' } >>を置き換える機能
+として提供されますが，より高機能です。
 
 =item get_stash(invocant)
 
-スタッシュ B<stash> と呼ばれるI<invocant>のシンボルテーブルハッシュが
+I<invodant>のスタッシュ B<stash>，つまりシンボルテーブルハッシュが
 存在すれば，そのスタッシュを返します。
 
 I<invocant>がオブジェクトリファレンスであれば，そのオブジェクトのパッケージの
@@ -258,8 +272,8 @@ I<invocant>がパッケージ名であり，そのパッケージが既に存在
 サブルーチンI<subr>をI<package>にI<name>としてインストールします。
 
 C<< do{ no strict 'refs'; *{$package.'::'.$name} = \&subr; } >>というコードと
-ほぼ等価です。さらに，I<subr>が匿名サブルーチンであればI<package>に
-名前付きサブルーチンI<&package::name>として配置します。
+ほぼ等価です。さらに，I<subr>が匿名サブルーチンであれば，I<package>に
+名前付きサブルーチンI<&package::name>として命名します。
 
 サブルーチンを再インストールするときは，C<< no warnings 'redefine' >>
 ディレクティブを使ってください。
@@ -271,25 +285,46 @@ I<package>かI<name>が未定義値またはリファレンスであれば致命
 I<subr>がコードリファレンスでないときも致命的エラーとなりますが，
 オーバーロードマジックは考慮されます。
 
-なお，Pure Perl版のコードでは匿名サブルーチンの配置は行いません。
+なお，Pure Perl版のコードでは匿名サブルーチンの命名は行いません。
 
-=item uninstall_subroutine(package, names ...)
+=item uninstall_subroutine(package, name [=> code], ...)
 
 サブルーチンI<name>をパッケージI<package>から削除します。
 
 C<< undef &subr >>がC<&subr>を未定義にして型グロブのコードスロットを
-そのままにするのに対して，C<uninstall_subroutine>は型グロブのコードスロットを
-空にします。
+そのままにするのに対して，C<uninstall_subroutine>は型グロブを
+シンボルテーブルから削除し，コードスロットを以外の値をシンボルテーブルに
+戻します。
+この挙動はC<namespace::clean>やC<constant::lexical>を実現するためのものです。
 
-これはC<Sub::Delete::delete_sub()>に似ていますが，複数のサブルーチンを一度に
-削除できます。
+I<name>に対してI<code>が与えられている場合は，C<&package::name>がI<code>である
+場合のみ削除します。すなわち，以下の二つのコードは等価です。
 
+	uninstall_subroutine($pkg, $name) if \&{$pkg . '::' . $name} == $code;
+	uninstall_subroutine($pkg, $name => $code);
+
+この関数はC<Sub::Delete::delete_sub()>と同じアルゴリズムに基づいていますが，
+複数のサブルーチンを一度に削除できます。
 
 =item get_code_info(subr)
 
 サブルーチンI<subr>のパッケージと名前のペアを返します。
 これはC<Sub::Identify::get_code_info()>とほぼ同じ機能です。
 ただし，スカラーコンテキストでは完全修飾名を返します。
+
+I<subr>の名前が不明なときは，リストコンテキストでは空リストを，
+スカラーコンテキストではC<undef>を返します。
+
+=item get_code_ref(package, name)
+
+I<\&package::name>が存在すれば，それを返します。
+これはC<< do{ no strict 'refs'; *{$package . '::' . $name}{CODE} } >>
+に似ていますが，I<\&package::name>が存在しない場合でも
+I<*package::name>を生成しません。
+
+第三引数としてC<"-create">を与えると，I<\&package::name>が存在しなくても
+スタブを生成してそれを返します。
+これはC<< do{ no strict 'refs'; \&{$package . '::' . $name} } >>と同じです。
 
 =item curry(subr, args and/or placeholders)
 
@@ -298,9 +333,10 @@ C<< undef &subr >>がC<&subr>を未定義にして型グロブのコードスロ
 
 I<args and/or placeholders>には，固定する引数か，カリー化サブルーチンの引数に
 置き換えられるプレースホルダを渡します。プレースホルダには，添え字I<x>を参照
-するC<\x>と，C<\x>で参照した最大の添え字の以降の引数を参照するC<*_>があります。
+するC<\x>と，C<\x>で参照した最大の添え字の以降の引数リストを参照する
+C<*_>があります。
 
-たとえば，以下のC<$closure>とC<$curried>は同じ意図で呼び出すことができます。
+たとえば，以下のC<$closure>とC<$curried>は同じ機能を持つサブルーチンとなります。
 
 	my $class = 'Foo';
 	$closure = sub{ is_instance($_[0], $class) };
@@ -309,13 +345,14 @@ I<args and/or placeholders>には，固定する引数か，カリー化サブ�
 	$closure = sub{ install_subroutine($class, @_) };
 	$curried = curry \&install_subroutine, $class, *_;
 
-なお，C<*_>はC<\x>で参照しなかった引数ではないので注意してください。
+なお，C<*_>はC<\x>で参照しなかった引数リストではないので注意してください。
 たとえば，C<< curry(\&subr, *_, \1)->(0, 1, 2, 3) >>というカリー化では，
-C<subr(2, 3, 1)>が呼び出されます。
+C<subr(2, 3, 1)>が呼び出され，カリー化サブルーチンに与えられた
+C<$_[0]>(つまり0)が無視されます。
 
 より詳しいサンプルコードがL<Data::Util::Curry>にあります。
 
-=item modify_subroutine(subr, modifier_type => subroutines, ...)
+=item modify_subroutine(subr, modifier_type => [subroutines], ...)
 
 サブルーチンI<subr>をI<modifier_type>にしたがってI<subroutines>で修飾し，
 無名関数I<modified_subr>として返します。
@@ -345,36 +382,37 @@ C<around>はI<subr>の入出力をフィルタリングするための修飾子�
 	);
 	$modified->();
 
-XSによる実装では，サブルーチンを修飾したときのコストは非常に安くなっています。
+XSによる実装では，サブルーチン修飾子のコストが非常に安くなっています。
 
 このディストリビューションに付属しているF<example/lib/MethodModifiers>
 (C<modify_subroutine()>/C<subroutine_modifier()>のデモ)のベンチマーク
-F<benchmark/methext_bench.pl>によれば，メソッド修飾のコストは次のようになります：
+F<benchmark/methext_bench.pl>によれば，メソッド修飾のコストはほぼ次のようになります：
 
 	with before modifier: 100% slower
-	with after modifier:  100% slower
+	with after  modifier: 100% slower
 	with around modifier: 200% slower
 
 なお，C<SUPER::>疑似クラスによるメソッドの拡張は約500% slowerですから，
 メソッド修飾子による拡張の方が数倍高速です。
 
 各修飾子については，L<Class::MOP::Class/"Method Modifiers">に
-詳しい解説があります。
+詳しい解説があります。L<Class::Method::Modifiers>にも解説があります。
+このモジュールが提供するAPIはこれらのモジュールより低水準ですが，
+機能には互換性があります。
 
 =item subroutine_modifier(modified, modifier_type => subroutines, ...)
 
 C<modify_subroutine()>で生成したI<modified>を操作します。
 
 引数をI<modified>のみ渡した場合は，そのI<modified>がC<modify_subroutine()>で
-生成されたものかどうかを示すブール値を返します。
+生成されたものかどうかを示す真偽値を返します。
 
 	if(subroutine_modifier $subr){
 		# $subrは修飾子つきサブルーチン
 	}
 
-I<modified>とI<modifier_type>(C<before>, C<around>, C<after>およびC<original>)
-を渡すと，そのI<modifier_type>に応じた修飾関数
-（またはC<original>の場合，元の関数）を返します。
+I<modified>とI<modifier_type>(C<before>, C<around>, C<after>)
+を渡すと，そのI<modifier_type>に応じた修飾関数を返します。
 
 	@befores = subroutine_modifier $modified, 'before';
 
@@ -385,10 +423,15 @@ I<modified>とI<modifier_type>(C<before>, C<around>, C<after>およびC<original
 
 =item mkopt(input, moniker, require_unique, must_be)
 
-I<input>を元に配列リファレンスを作成します。
+I<input>を元に名前と値のペア配列からなる配列リファレンスを作成します。
 
 これはC<Data::OptList::mkopt()>に似ています。それに加えて，I<must_be>は
 名前と型のペアからなるハッシュリファレンスでもかまいません。
+
+For example:
+
+	$array_ref = mkopt([qw(foo bar), baz => [42]], 'moniker');
+	# $array_ref == [ [foo => undef], [bar => undef], baz => [42] ]
 
 =item mkopt_hash(input, moniker, must_be)
 
@@ -396,6 +439,11 @@ I<input>を元にハッシュリファレンスを作成します。
 
 これはC<Data::OptList::mkopt_hash()>に似ています。それに加えて，I<must_be>は
 名前と型のペアからなるハッシュリファレンスでもかまいません。
+
+For example:
+
+	$hash_ref = mkopt([qw(foo bar), baz => [42]], 'moniker');
+	# $hash_ref == { foo => undef, bar => undef, baz => [42] }
 
 =back
 
@@ -446,9 +494,14 @@ Please report any bugs or feature requests to the author.
 
 =head1 SEE ALSO
 
+L<overload>.
+
 L<Scalar::Util>.
 
-L<overload>.
+L<Class::MOP>.
+
+このモジュールのいくつかの機能は以下のモジュールの機能をXSに移植して
+最適化したものであり，またいくつかはそれに加えて更に拡張を施したものです。
 
 L<Params::Util>.
 
@@ -459,8 +512,6 @@ L<Sub::Identify>.
 L<Sub::Delete>.
 
 L<Sub::Curry>.
-
-L<Class::MOP>.
 
 L<Class::Method::Modifiers>.
 

@@ -3,14 +3,20 @@
 use strict;
 use constant HAS_THREADS => eval{ require threads };
 use Test::More;
+use Test::Exception;
 
 BEGIN{
+	if($INC{'Devel/Cover.pm'}){
+		plan skip_all => '(under -d:Cover)';
+	}
+
 	if(HAS_THREADS){
-		plan tests => 14;
+		plan tests => 17;
 	}
 	else{
 		plan skip_all => 'requires threads';
 	}
+
 }
 
 use threads;
@@ -48,6 +54,10 @@ my $thr1 = async{
 	yield;
 	ok !is_instance(Baz->new, 'Foo');
 
+	throws_ok{
+		instance(Foo->new, 'Bar');
+	} qr/Validation failed/;
+
 	return 1;
 };
 
@@ -59,6 +69,10 @@ my $thr2 = async{
 	yield;
 	ok !is_instance(Baz->new, 'Foo');
 
+	throws_ok{
+		instance(Foo->new, 'Bar');
+	} qr/Validation failed/;
+
 	return 1;
 };
 
@@ -67,6 +81,10 @@ my $thr2 = async{
 	ok is_instance(Bar->new, 'Foo');
 
 	ok !is_instance(Baz->new, 'Foo');
+
+	throws_ok{
+		instance(Foo->new, 'Bar');
+	} qr/Validation failed/;
 }
 
 ok $thr2->join(), 'join a thread (2)';

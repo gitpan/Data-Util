@@ -41,12 +41,11 @@ du_neat_cat(pTHX_ SV* const dsv, SV* x, const int level){
 			return;
 		}
 		else if(SvTYPE(x) == SVt_PVAV){
-			SV** svp;
-			I32 len = av_len((AV*)x);
+			I32 const len = av_len((AV*)x);
 
 			sv_catpvs(dsv, "[");
 			if(len >= 0){
-				svp = av_fetch((AV*)x, 0, FALSE);
+				SV** const svp = av_fetch((AV*)x, 0, FALSE);
 
 				if(*svp){
 					du_neat_cat(aTHX_ dsv, *svp, level+1);
@@ -71,8 +70,7 @@ du_neat_cat(pTHX_ SV* const dsv, SV* x, const int level){
 			sv_catpvs(dsv, "{");
 			if(val){
 				if(!is_identifier_cstr(key, klen)){
-					SV* sv = newSV(PV_LIMIT + 5);
-					sv_2mortal(sv);
+					SV* const sv = sv_newmortal();
 					key = pv_display(sv, key, klen, klen, PV_LIMIT);
 				}
 				Perl_sv_catpvf(aTHX_ dsv, "%s => ", key);
@@ -89,12 +87,9 @@ du_neat_cat(pTHX_ SV* const dsv, SV* x, const int level){
 			GV* const gv = CvGV((CV*)x);
 			Perl_sv_catpvf(aTHX_ dsv, "\\&%s::%s(0x%p)", HvNAME(GvSTASH(gv)), GvNAME(gv), x);
 		}
-		else if(SvPOKp(x) || SvNIOKp(x) || isGV(x)){
+		else{
 			sv_catpvs(dsv, "\\");
 			du_neat_cat(aTHX_ dsv, x, level+1);
-		}
-		else{
-			Perl_sv_catpvf(aTHX_ dsv, "%s(0x%p)", sv_reftype(x, FALSE), x);
 		}
 	}
 	else if(isGV(x)){
@@ -103,9 +98,8 @@ du_neat_cat(pTHX_ SV* const dsv, SV* x, const int level){
 	else if(SvOK(x)){
 		if(SvPOKp(x)){
 			STRLEN cur;
-			char* const pv = SvPV(x, cur);
-			SV* const sv = newSV(PV_LIMIT + 5);
-			sv_2mortal(sv);
+			char* const pv = SvPV(x, cur); /* pv_sisplay requires char*, not const char* */
+			SV* const sv = sv_newmortal();
 			pv_display(sv, pv, cur, cur, PV_LIMIT);
 			sv_catsv(dsv, sv);
 		}

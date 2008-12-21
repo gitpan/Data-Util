@@ -1,5 +1,7 @@
 /*
 	Data-Util/subs.c
+
+	XS code templates for curry() and modify_subroutine()
 */
 #include "data-util.h"
 

@@ -10,7 +10,10 @@ use Exporter qw(import);
 
 our @EXPORT    = qw(before around after);
 our @EXPORT_OK = (@EXPORT, qw(add_method_modifier));
-our %EXPORT_TAGS = (all => \@EXPORT_OK);
+our %EXPORT_TAGS = (
+	all   => \@EXPORT_OK,
+	moose => \@EXPORT,
+);
 
 use Data::Util ();
 
@@ -20,37 +23,43 @@ sub _croak{
 }
 
 sub add_method_modifier{
-	my($class, $type, $args) = @_;
+	my $into     = shift;
+	my $type     = shift;
+	my $modifier = pop;
 
-	my($code) = pop @{$args};
+	foreach my $name(@_){
+		my $method = Data::Util::get_code_ref($into, $name);
 
-	foreach my $method(@{$args}){
-		my $entity = $class->can($method)
-			or _croak(qq{The method '$method' is not found in the inheritance hierarchy for class $class});
+		if(!$method || !Data::Util::subroutine_modifier($method)){
 
-		if(!Data::Util::subroutine_modifier($entity) or (Data::Util::get_code_info($entity))[0] ne $class){
-			$entity = Data::Util::modify_subroutine($entity);
+			unless($method){
+				$method = $into->can($name)
+					or _croak(qq{The method '$name' is not found in the inheritance hierarchy for class $into});
+			}
+
+			$method = Data::Util::modify_subroutine($method, $type => [$modifier]);
 
 			no warnings 'redefine';
-			Data::Util::install_subroutine($class, $method => $entity);
+			Data::Util::install_subroutine($into, $name => $method);
 		}
-
-		Data::Util::subroutine_modifier($entity, $type => $code);
+		else{ # $method exists and is modified
+			Data::Util::subroutine_modifier($method, $type => $modifier);
+		}
 	}
 	return;
 }
 
 sub before{
 	my $into = caller;
-	add_method_modifier($into, before => [@_]);
+	add_method_modifier($into, before => @_);
 }
 sub around{
 	my $into = caller;
-	add_method_modifier($into, around => [@_]);
+	add_method_modifier($into, around => @_);
 }
 sub after{
 	my $into = caller;
-	add_method_modifier($into, after  => [@_]);
+	add_method_modifier($into, after  => @_);
 }
 
 
@@ -109,7 +118,7 @@ See L<Data::Util> for details.
 
 =over 4
 
-=item add_method_modifier(class, modifer_type, args)
+=item add_method_modifier(class, modifer_type, method(s), modifier)
 
 =back
 

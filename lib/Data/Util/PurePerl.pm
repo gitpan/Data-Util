@@ -205,13 +205,10 @@ sub install_subroutine{
 	my $into = shift;
 	is_string($into)  or _fail('a package name', $into);
 
-	if((@_ % 2) != 0){
-		_croak('Odd number of arguments for install_subroutine');
-	}
+	my $param = mkopt_hash(@_ == 1 ? shift : \@_, 'install_subroutine', 'CODE');
 
-	while(my($as, $code) = splice @_, 0, 2){
-		is_string($as)    or _fail('a subroutine name', $as);
-		is_code_ref($code) or _fail('a CODE reference', $code);
+	while(my($as, $code) = each %{$param}){
+		defined($code) or _fail('a CODE reference', $code);
 
 		my $slot = do{ no strict 'refs'; \*{ $into . '::' . $as } };
 
@@ -232,16 +229,12 @@ sub uninstall_subroutine {
 	is_string($package) or _fail('a package name', $package);
 	my $stash = get_stash($package) or return 0;
 
+	my $param = mkopt_hash(@_ == 1 && is_hash_ref($_[0]) ? shift : \@_, 'install_subroutine', 'CODE');
+
 	require B;
 
-	for(my $i = 0; $i < @_; $i++){
-		my $name = $_[$i];
-		is_string($name) or _fail('a subroutine name', $name);
-
-		my $specified_code = is_code_ref($_[$i+1]) ? $_[++$i] : undef;
-
+	while(my($name, $specified_code) = each %{$param}){
 		my $glob = $stash->{$name};
-
 
 		if(ref(\$glob) ne 'GLOB'){
 			if(ref $glob){
@@ -286,6 +279,36 @@ sub get_code_info{
 	my $gv = B::svref_2object(\&{$code})->GV;
 	return unless $gv->isa('B::GV');
 	return wantarray ? ($gv->STASH->NAME, $gv->NAME) : join('::', $gv->STASH->NAME, $gv->NAME);
+}
+
+sub get_code_ref{
+	my($package, $name, @flags) = @_;
+
+	is_string($package) or _fail('a package name', $package);
+	is_string($name)    or _fail('a subroutine name', $name);
+
+	if(@flags){
+		if(grep{ $_ eq '-create' } @flags){
+			no strict 'refs';
+			return \&{$package . '::' . $name};
+		}
+		else{
+			_fail('a flag', @flags);
+		}
+	}
+
+	my $stash = get_stash($package) or return undef;
+
+	if(defined(my $glob = $stash->{$name})){
+		if(ref(\$glob) eq 'GLOB'){
+			return *{$glob}{CODE};
+		}
+		else{ # a stub or special constant
+			no strict 'refs';
+			return *{$package . '::' . $name}{CODE};
+		}
+	}
+	return undef;
 }
 
 sub curry{
@@ -339,7 +362,7 @@ END_CXT
 }
 
 BEGIN{
-	my %modifiers;
+	our %modifiers;
 
 	my $initializer;
 	$initializer = sub{
@@ -353,7 +376,7 @@ BEGIN{
 		goto &modify_subroutine;
 	}
 	sub modify_subroutine{
-		my $code   = code_ref  shift;
+		my $code   = code_ref shift;
 
 		if((@_ % 2) != 0){
 			_croak('Odd number of arguments for modify_subroutine()');
@@ -362,9 +385,13 @@ BEGIN{
 
 		my(@before, @around, @after);
 
-		@before = map{ code_ref $_ } @{array_ref $args{before}} if exists $args{before};
-		@around = map{ code_ref $_ } @{array_ref $args{around}} if exists $args{around};
-		@after  = map{ code_ref $_ } @{array_ref $args{after}}  if exists $args{after};
+		@before = map{ code_ref $_ } @{array_ref delete $args{before}} if exists $args{before};
+		@around = map{ code_ref $_ } @{array_ref delete $args{around}} if exists $args{around};
+		@after  = map{ code_ref $_ } @{array_ref delete $args{after}}  if exists $args{after};
+
+		if(%args){
+			_fail('a modifier property', join ', ', keys %args);
+		}
 
 		my %props = (
 			before      => \@before,
@@ -374,16 +401,16 @@ BEGIN{
 		);
 
 		#$code = curry($_, (my $tmp = $code), *_) for @around;
-		for my $ar(reverse @around){
-			my $base = $code;
-			$code = sub{ $ar->($base, @_) };
+		for my $ar_code(reverse @around){
+			my $next = $code;
+			$code = sub{ $ar_code->($next, @_) };
 		}
 		my($pkg, $file, $line, $hints, $bitmask) = (caller 0)[0, 1, 2, 8, 9];
 
 		my $context = sprintf <<'END_CXT', $pkg, $line, $file;
 BEGIN{ $^H = $hints; ${^WARNING_BITS} = $bitmask; }
 package %s;
-#line %s %s
+#line %s %s(modify_subroutine)
 END_CXT
 
 		my $modified = eval $context . q{sub{
@@ -476,11 +503,13 @@ sub __is_a {
 sub mkopt{
 	my($opt_list, $moniker, $require_unique, $must_be) = @_;
 
-	return [] unless $opt_list;
+	return [] unless defined $opt_list;
 
 	$opt_list = [
 		map { $_ => (ref $opt_list->{$_} ? $opt_list->{$_} : ()) } keys %$opt_list
 	] if is_hash_ref($opt_list);
+
+	is_array_ref($opt_list) or _fail('an ARRAY or HASH reference', $opt_list);
 
 	my @return;
 	my %seen;
@@ -495,6 +524,8 @@ sub mkopt{
 	for(my $i = 0; $i < @$opt_list; $i++) {
 		my $name = $opt_list->[$i];
 		my $value;
+
+		is_string($name) or _fail("a name in $moniker opt list", $name);
 
 		if($require_unique && $seen{$name}++) {
 			_croak("Validation failed: Multiple definitions provided for $name in $moniker opt list")

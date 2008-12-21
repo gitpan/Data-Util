@@ -3,9 +3,6 @@
 use strict;
 use Data::Util qw(:all);
 
-curry(sub{print "[@_]\n";}, \0, *_, \1)->(1 .. 3);
-exit;
-
 {
 	package Foo;
 	use Data::Dumper;

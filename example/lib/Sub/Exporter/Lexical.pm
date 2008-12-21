@@ -8,26 +8,25 @@ use Data::Util;
 use Carp ();
 
 sub import :method{
-	my $class = shift;
+	my $class    = shift;
 	my $exportee = caller;
 
-	$class->setup($exportee, @_);
+	$class->setup_installer($exportee, @_);
 }
 
-sub setup :method{
+sub setup_installer :method{
 	my($exporter, $exportee, %args) = @_;
 
 	my $exportable_ref = Data::Util::mkopt_hash $args{exports}, 'setup', 'CODE';
 
 	while(my($name, $entity) = each %{$exportable_ref}){
 		unless($entity){
-			$exportable_ref->{$name} = do{ no strict 'refs'; \&{$exportee . '::' . $name} };
+			$exportable_ref->{$name} = Data::Util::get_code_ref($exportee, $name, -create);
 		}
 	}
 
 	Data::Util::install_subroutine($exportee, import => sub :method{
 		my $class = shift;
-		return if $class ne $exportee;
 
 		my $export_ref;
 		if(@_){
@@ -47,6 +46,7 @@ sub setup :method{
 
 		$^H |= 0x020000; # HINT_LOCALIZE_HH
 		my $cleaner = $^H{$exporter .'/'. $into} ||= bless [$into], $exporter;
+
 		push @{$cleaner}, %{$export_ref};
 
 		return;
@@ -59,3 +59,39 @@ sub DESTROY :method{
 	Data::Util::uninstall_subroutine(@{$self});
 }
 1;
+
+__END__
+
+=head1 NAME
+
+Sub::Exporter::Lexical - Exports subrtouines lexically
+
+=head1 SYNOPSIS
+
+	package Foo;
+	use Sub::Exporter::Lexical
+		exports => [
+			qw(foo bar),
+			baz => \&bar, # i.e. the synonym of bar
+		],
+	;
+
+	# ...
+
+	{
+		use Foo;
+		foo(...); # Foo::foo(...)
+		bar(...); # Foo::bar(...)
+		baz(...); # Foo::bar(...), too
+
+	} # foo, bar and baz are uninstalled
+
+	foo(); # fatal!
+	bar(); # fatal!
+	baz(); # fatal!
+
+=head1 SEE ALSO
+
+L<Data::Util>.
+
+=cut

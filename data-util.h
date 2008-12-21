@@ -16,7 +16,17 @@
 #define SvRXOK(sv) ((bool)(SvROK(sv) && (SvTYPE(SvRV(sv)) == SVt_PVMG) && mg_find(SvRV(sv), PERL_MAGIC_qr)))
 #endif
 
-#define is_string(x) (SvOK(x) && !SvROK(x) && (SvPOKp(x) ? SvCUR(x) > 0 : TRUE))
+#ifndef isGV_with_GP
+#define isGV_with_GP(maybe_gv) (isGV(maybe_gv))
+#endif
+
+#ifndef HvNAME_get
+#define HvNAME_get(hv) HvNAME(hv)
+#endif
+
+#ifndef HvNAMELEN_get
+#define HvNAMELEN_get(hv) (strlen(HvNAME_get(hv)))
+#endif
 
 #define PUSHary(ary, start, len) STMT_START{      \
 		I32 i;                            \
@@ -34,6 +44,8 @@
 		}                                 \
 	} STMT_END
 
+
+#define is_string(x) (SvOK(x) && !SvROK(x) && (SvPOKp(x) ? SvCUR(x) > 0 : TRUE))
 
 #define neat(x) du_neat(aTHX_ x)
 

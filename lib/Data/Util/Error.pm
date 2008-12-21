@@ -74,4 +74,8 @@ Data::Util::Error - Deals with class-specific error handlers in Data::Util
 
 =back
 
+=head1 SEE ALSO
+
+L<Data::Util>.
+
 =cut

@@ -21,7 +21,7 @@ author_tests 'xt', 'author/t';
 my $use_xs = can_cc();
 
 for (@ARGV){
-	/^-pm/ and $use_xs = 0;
+	/^-pp/ and $use_xs = 0;
 	/^-xs/ and $use_xs = 1;
 }
 

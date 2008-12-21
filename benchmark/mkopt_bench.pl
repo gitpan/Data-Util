@@ -30,6 +30,11 @@ cmpthese -1 => {
 			my $opt_ref = Data::Util::mkopt(@args);
 		}
 	},
+	'inline' => sub{
+		for(1 .. 10){
+			my $opt_ref = [ (map{ [$_ => undef] } qw(foo bar) ), [baz => []] ];
+		}
+	},
 };
 
 @args = ([qw(foo bar), baz => []], "moniker", 1);
@@ -76,6 +81,22 @@ cmpthese -1 => {
 		}
 	},
 };
+
+@args = ({foo => [], bar => [], baz => []}, "moniker", 0);
+print "\nmkopt() from HASH ref\n";
+cmpthese -1 => {
+	'OptList' => sub{
+		for(1 .. 10){
+			my $opt_ref = Data::OptList::mkopt(@args);
+		}
+	},
+	'Util' => sub{
+		for(1 .. 10){
+			my $opt_ref = Data::Util::mkopt(@args);
+		}
+	},
+};
+
 
 @args = ([qw(foo bar), baz => []]);
 print "\nmkopt_hash()\n";
