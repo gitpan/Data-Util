@@ -24,6 +24,10 @@ Data::Util::Curry - Curries functions and methods
 	# two subscripts and the rest of the arguments
 	say curry(\&add, *_, \1, \0)->(1 .. 5); # 3 + 4 + 5 + 1 + 2
 
+=head1 DESCRIPTION
+
+(todo)
+
 =head1 EXAMPLES
 
 =head2 Currying Functions

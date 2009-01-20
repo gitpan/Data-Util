@@ -4,7 +4,7 @@ use 5.008_001;
 use strict;
 #use warnings;
 
-our $VERSION = '0.44';
+our $VERSION = '0.50';
 
 use Exporter qw(import);
 
@@ -52,8 +52,6 @@ our @EXPORT_OK = qw(
 	mkopt_hash
 );
 
-push @EXPORT_OK, qw(wrap_subroutine); # deprecated
-
 our %EXPORT_TAGS = (
 	all => \@EXPORT_OK,
 
@@ -77,7 +75,7 @@ Data::Util - A selection of utilities for data and data types
 
 =head1 VERSION
 
-This document describes Data::Util version 0.44
+This document describes Data::Util version 0.50
 
 =head1 SYNOPSIS
 
@@ -137,10 +135,11 @@ This document describes Data::Util version 0.44
 =head1 DESCRIPTION
 
 This module provides utility functions for data and data types,
-including functions for subroutines.
+including functions for subroutines and symbol table hashes (stashes).
 
 The implementation of this module is both Pure Perl and XS, so if you have a C
 compiler, all the functions this module provides are really faster.
+
 
 There are many benchmakrs in F<DIST-DIR/benchmark/> directory.
 
@@ -213,8 +212,8 @@ Here, a B<number> means that the perl parser is understandable and that
 the numifying process like C<< sprintf '%g', $value >> produces no warnings.
 
 It is similar to C<Scalar::Util::looks_like_number()>
-but refuses C<"Inf">, C<"NaN">, C<9**9**9> (which makes C<infinity>) and
-C<9**9**9 - 9**9**9> (which makes C<not a number>).
+but refuses C<"Inf">, C<"NaN">. Note that C<9**9**9> makes C<infinity> and
+C<9**9**9 - 9**9**9> makes C<not a number>.
 
 This function has no counterpart for validation.
 
@@ -450,6 +449,12 @@ For example:
 	# $optlist == {foo => undef, bar => [42]}
 
 =back
+
+=head1 ENVIRONMENT VARIABLES
+
+=head2 DATA_UTIL_PUREPERL
+
+If true, C<Data::Util> uses the Pure Perl implementation.
 
 =head1 DEPENDENCIES
 

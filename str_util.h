@@ -5,7 +5,7 @@
 
 #undef strnEQ
 static inline int
-strnEQ(const char* const x, const char* const y, const size_t n){
+strnEQ(const char* const x, const char* const y, size_t const n){
 	size_t i;
 	for(i = 0; i < n; i++){
 		if(x[i] != y[i]){
@@ -16,7 +16,7 @@ strnEQ(const char* const x, const char* const y, const size_t n){
 }
 #undef strEQ
 static inline int
-strEQ(const char* x, const char* y){
+strEQ(const char* const x, const char* const y){
 	size_t i;
 	for(i = 0; ; i++){
 		if(x[i] != y[i]){

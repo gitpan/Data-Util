@@ -58,7 +58,7 @@ foreach my $x (Foo->new, Foo::X::X::X->new, Unrelated->new, undef, {}){
 				$i++ if _INSTANCE($x, 'Foo');
 			}
 		},
-		'is_instance()' => sub{
+		'is_instance' => sub{
 			for(1 .. 10){
 				$i++ if is_instance($x, 'Foo');
 			}

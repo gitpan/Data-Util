@@ -281,13 +281,8 @@ my_string(pTHX_ SV* const sv, const char* const name){
 	return sv;
 }
 
-static inline const char*
+static const char*
 my_canon_pkg(pTHX_ const char* name){
-	/* ""  -> "main" */
-	if(name[0] == '\0'){
-		return "main";
-	}
-
 	/* "::Foo" -> "Foo" */
 	if(name[0] == ':' && name[1] == ':'){
 		name += 2;
@@ -332,7 +327,6 @@ my_isa_lookup(pTHX_ HV* const stash, const char* klass_name){
 
 static int
 my_instance_of(pTHX_ SV* const x, SV* const klass){
-	dVAR;
 	if( !is_string(klass) ){
 		my_fail(aTHX_ "a class name", klass);
 	}
@@ -587,20 +581,20 @@ my_build_around_code(pTHX_ SV* code_ref, AV* const around){
 	for(i = av_len(around); i >= 0; i--){
 		CV* current;
 		SV* const sv = validate(*av_fetch(around, i, TRUE), T_CV);
-		AV* const args         = newAV();
+		AV* const params       = newAV();
 		AV* const placeholders = newAV();
 
-		av_store(args, 0, newSVsv(sv));       /* base proc */
-		av_store(args, 1, newSVsv(code_ref)); /* first argument (next proc) */
-		av_store(args, 2, &PL_sv_undef);      /* placeholder hole */
+		av_store(params, 0, newSVsv(sv));       /* base proc */
+		av_store(params, 1, newSVsv(code_ref)); /* first argument (next proc) */
+		av_store(params, 2, &PL_sv_undef);      /* placeholder hole */
 
 		av_store(placeholders, 2, (SV*)PL_defgv); // *_
 		SvREFCNT_inc_simple_void_NN(PL_defgv);
 
 		current = newXS(NULL /* anonymous */, XS_Data__Util_curried, __FILE__);
-		sv_magicext((SV*)current, (SV*)args, PERL_MAGIC_ext, &curried_vtbl, (const char*)placeholders, HEf_SVKEY);
+		sv_magicext((SV*)current, (SV*)params, PERL_MAGIC_ext, &curried_vtbl, (const char*)placeholders, HEf_SVKEY);
 
-		SvREFCNT_dec(args);         /* because: refcnt++ in sv_magicext() */
+		SvREFCNT_dec(params);       /* because: refcnt++ in sv_magicext() */
 		SvREFCNT_dec(placeholders); /* because: refcnt++ in sv_magicext() */
 
 		code_ref = newRV_noinc((SV*)current);
@@ -1026,7 +1020,7 @@ curry(code, ...)
 	SV* code
 PREINIT:
 	CV* curried;
-	AV* args;
+	AV* params;
 	AV* placeholders;
 	I32 is_method;
 	I32 i;
@@ -1034,10 +1028,10 @@ CODE:
 	SvGETMAGIC(code);
 	is_method = check_type(code, T_CV) ? 0 : G_METHOD;
 
-	args         = newAV();
+	params       = newAV();
 	placeholders = newAV();
 
-	av_extend(args,         items-1);
+	av_extend(params,       items-1);
 	av_extend(placeholders, items-1);
 
 	for(i = 0; i < items; i++){
@@ -1045,16 +1039,16 @@ CODE:
 		SvGETMAGIC(sv);
 
 		if(SvROK(sv) && SvIOKp(SvRV(sv)) && !SvOBJECT(SvRV(sv))){ // \0, \1, ...
-			av_store(args, i, &PL_sv_undef);
+			av_store(params, i, &PL_sv_undef);
 			av_store(placeholders, i, newSVsv(SvRV(sv)));
 		}
 		else if(sv == (SV*)PL_defgv){ // *_ (always *main::_)
-			av_store(args, i, &PL_sv_undef);
+			av_store(params, i, &PL_sv_undef);
 			av_store(placeholders, i, sv); /* not copy */
 			SvREFCNT_inc_simple_void_NN(sv);
 		}
 		else{
-			av_store(args, i, sv); /* not copy */
+			av_store(params, i, sv); /* not copy */
 			av_store(placeholders, i, &PL_sv_undef);
 			SvREFCNT_inc_simple_void_NN(sv);
 		}
@@ -1062,8 +1056,8 @@ CODE:
 	curried = newXS(NULL /* anonymous */, XS_Data__Util_curried, __FILE__);
 	CvXSUBANY(curried).any_i32 = is_method;
 
-	sv_magicext((SV*)curried, (SV*)args, PERL_MAGIC_ext, &curried_vtbl, (const char*)placeholders, HEf_SVKEY);
-	SvREFCNT_dec((SV*)args);         /* refcnt++ in sv_magicext() */
+	sv_magicext((SV*)curried, (SV*)params, PERL_MAGIC_ext, &curried_vtbl, (const char*)placeholders, HEf_SVKEY);
+	SvREFCNT_dec((SV*)params);       /* refcnt++ in sv_magicext() */
 	SvREFCNT_dec((SV*)placeholders); /* refcnt++ in sv_magicext() */
 
 	RETVAL = newRV_noinc((SV*)curried);
@@ -1073,8 +1067,6 @@ OUTPUT:
 SV*
 modify_subroutine(code, ...)
 	SV* code
-ALIAS:
-	wrap_subroutine = 1
 PREINIT:
 	CV* modified;
 	AV* before;
@@ -1084,11 +1076,6 @@ PREINIT:
 	I32 i;
 CODE:
 	validate(code, T_CV);
-
-	if(ix == 1 && ckWARN(WARN_DEPRECATED)){
-		Perl_warner(aTHX_ packWARN(WARN_DEPRECATED),
-			"wrap_subroutine() has been deprecated, use modify_subroutine() instead");
-	}
 
 	if( ((items - 1) % 2) != 0 ){
 		my_croak(aTHX_ "Odd number of arguments for %s", GvNAME(CvGV(cv)));
@@ -1128,6 +1115,7 @@ CODE:
 	}
 
 	modifiers = newAV();
+	av_extend(modifiers, 3);
 
 	av_store(modifiers, M_CURRENT,  my_build_around_code(aTHX_ code, around));
 
@@ -1136,6 +1124,7 @@ CODE:
 	av_store(modifiers, M_AFTER,  SvREFCNT_inc_simple_NN(after));
 
 	modified = newXS(NULL /* anonymous */, XS_Data__Util_modified, __FILE__);
+
 	sv_magicext((SV*)modified, (SV*)modifiers, PERL_MAGIC_ext, &modified_vtbl, NULL, 0);
 	SvREFCNT_dec((SV*)modifiers); /* refcnt++ in sv_magicext() */
 
@@ -1164,6 +1153,7 @@ PPCODE:
 		ST(0) = boolSV(mg);
 		XSRETURN(1);
 	}
+
 	if(!mg){
 		my_fail(aTHX_ "a modified subroutine", ST(0) /* ref to code */);
 	}

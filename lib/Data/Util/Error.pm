@@ -2,44 +2,50 @@ package Data::Util::Error;
 
 use strict;
 use warnings;
+use Data::Util ();
 
 sub import{
 	my $class = shift;
 	$class->fail_handler(scalar(caller) => @_) if @_;
 }
 
-my %fail_handler;
+my %FailHandler;
 sub fail_handler :method{
 	shift; # this class
-	my $pkg = shift;
-	my $h = $fail_handler{$pkg};
 
-	if(@_){
-		$fail_handler{$pkg} = shift;
+	my $pkg = shift;
+	my $h = $FailHandler{$pkg}; # old handler
+
+	if(@_){ # set
+		$FailHandler{$pkg} = Data::Util::code_ref(shift);
 	}
+	else{ # get
+		require MRO::Compat if $] < 5.010_000;
+
+		foreach my $p(@{mro::get_linear_isa($pkg)}){
+			if(defined( $h = $FailHandler{$p} )){
+				last;
+			}
+		}
+	}
+
 
 	return $h;
 }
 
 sub croak{
-	require MRO::Compat if $] < 5.010_000;
 	require Carp;
 
 	my $caller_pkg;
 	my $i = 0;
-	while($caller_pkg = caller $i){
+	while( defined( $caller_pkg = caller $i) ){
 		if($caller_pkg ne 'Data::Util'){
 			last;
 		}
 		$i++;
 	}
 
-	my $fail_handler;
-	foreach my $pkg(@{mro::get_linear_isa($caller_pkg)}){
-		if($fail_handler = $fail_handler{$pkg}){
-			last;
-		}
-	}
+	my $fail_handler = __PACKAGE__->fail_handler($caller_pkg);
 
 	local $Carp::CarpLevel = $Carp::CarpLevel + $i;
 	die $fail_handler ? &{$fail_handler} : &Carp::longmess;
@@ -54,11 +60,11 @@ Data::Util::Error - Deals with class-specific error handlers in Data::Util
 =head1 SYNOPSIS
 
 	package Foo;
-	use Data::Util::Error sub{ Foo::Exception->throw(@_) };
+	use Data::Util::Error sub{ Foo::InvalidArgument->throw(@_) };
 	use Data::Util qw(:validate);
 
 	sub f{
-		my $x_ref = array_ref shift; # Foo::Exception is thrown if invalid
+		my $x_ref = array_ref shift; # Foo::InvalidArgument is thrown if invalid
 		# ...
 	}
 

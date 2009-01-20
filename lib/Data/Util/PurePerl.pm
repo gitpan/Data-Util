@@ -106,11 +106,11 @@ sub invocant{
 			return $x;
 		}
 	}
-	else{
+	elsif(is_string($x)){
 		if(get_stash($x)){
 			$x =~ s/^:://;
 			$x =~ s/(?:main::)+//;
-			return $x eq '' ? 'main' : $x;
+			return $x;
 		}
 	}
 	_fail('an invocant', $x);
@@ -322,14 +322,22 @@ sub curry{
 	my @tmpl;
 
 	my $i = 0;
-	my $maxp = -1;
+	my $max_ph = -1;
+	my $min_ph =  0;
+
 	foreach my $arg(@_){
 		if(is_scalar_ref($arg) && is_integer($$arg)){
 			push @tmpl, sprintf '$_[%d]', $$arg;
-			$maxp = $$arg if $maxp < $$arg;
+
+			if($$arg >= 0){
+				$max_ph = $$arg if $$arg > $max_ph;
+			}
+			else{
+				$min_ph = $$arg if $$arg < $min_ph;
+			}
 		}
 		elsif(defined($arg) && (\$arg) == \*_){
-			push @tmpl, '@_[$maxp .. $#_]';
+			push @tmpl, '@_[$max_ph .. $#_ + $min_ph]';
 		}
 		else{
 			push @tmpl, sprintf '$args->[%d]', $i;
@@ -337,7 +345,7 @@ sub curry{
 		$i++;
 	}
 
-	$maxp++;
+	$max_ph++;
 
 	my($pkg, $file, $line, $hints, $bitmask) = (caller 0 )[0, 1, 2, 8, 9];
 	my $body = sprintf <<'END_CXT', $pkg, $line, $file;
@@ -371,10 +379,6 @@ BEGIN{
 		undef $initializer;
 	};
 
-	sub wrap_subroutine{
-		warnings::warnif(deprecated => 'wrap_subroutine() has been deprecated, use modify_subroutine() instead');
-		goto &modify_subroutine;
-	}
 	sub modify_subroutine{
 		my $code   = code_ref shift;
 

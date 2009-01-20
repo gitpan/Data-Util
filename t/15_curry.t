@@ -22,7 +22,8 @@ is_deeply [curry(\&foo, \0, \0, \0)->(42)], [42, 42, 42];
 
 is_deeply [scalar curry(\&foo, \(0 .. 2))->(1, 2, 3)], [3], 'in scalar context';
 
-is_deeply [curry(\&foo, *_)->(1, 2, 3)], [1, 2, 3], 'with *_';
+is_deeply [curry(\&foo, *_)->(1 .. 10)], [1 .. 10], 'with *_';
+
 is_deeply [curry(\&foo, *_, 3)->(1, 2)], [1, 2, 3], '*_, x';
 is_deeply [curry(\&foo, 1, *_)->(2, 3)], [1, 2, 3], 'x, *_';
 is_deeply [curry(\&foo, *_, 1, *_)->(2, 3)], [2, 3, 1, 2, 3], '*_, x, *_';
