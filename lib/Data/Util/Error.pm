@@ -20,7 +20,8 @@ sub fail_handler :method{
 		$FailHandler{$pkg} = Data::Util::code_ref(shift);
 	}
 	else{ # get
-		require MRO::Compat if $] < 5.010_000;
+		require MRO::Compat if $] <  5.010_000;
+		require mro         if $] >= 5.011_000;
 
 		foreach my $p(@{mro::get_linear_isa($pkg)}){
 			if(defined( $h = $FailHandler{$p} )){
@@ -60,7 +61,7 @@ Data::Util::Error - Deals with class-specific error handlers in Data::Util
 =head1 SYNOPSIS
 
 	package Foo;
-	use Data::Util::Error sub{ Foo::InvalidArgument->throw(@_) };
+	use Data::Util::Error sub{ Foo::InvalidArgument->throw_error(@_) };
 	use Data::Util qw(:validate);
 
 	sub f{

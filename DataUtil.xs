@@ -9,12 +9,6 @@
 
 #define is_special_nv(nv) (nv == NV_INF || nv == -NV_INF || Perl_isnan(nv))
 
-#ifdef PERL_DONT_CREATE_GVSV
-#define my_GV_with_SV(gv) GvSV(gv)
-#else
-#define my_GV_with_SV(gv) (GvSV(gv) && SvREFCNT(GvSV(gv)) > 1 /* refered somewhere */)
-#endif
-
 typedef struct{
 	GV* universal_isa;
 
@@ -676,7 +670,8 @@ my_uninstall_sub(pTHX_ HV* const stash, const char* const name, STRLEN const nam
 
 		hv_delete(stash, name, namelen, G_DISCARD);
 
-		if(SvREFCNT(gv) == 0 || !(my_GV_with_SV(gv)
+		if(SvREFCNT(gv) == 0 || !(
+			   GvSV(gv)
 			|| GvAV(gv)
 			|| GvHV(gv)
 			|| GvIO(gv)
@@ -726,6 +721,8 @@ CODE:
 	initialize_my_cxt(aTHX_ &MY_CXT);
 	PERL_UNUSED_VAR(items);
 
+#define T_RX_deprecated T_RX
+
 void
 is_scalar_ref(x)
 	SV* x
@@ -735,7 +732,8 @@ ALIAS:
 	is_hash_ref   = T_HV
 	is_code_ref   = T_CV
 	is_glob_ref   = T_GV
-	is_regex_ref  = T_RX
+	is_regex_ref  = T_RX_deprecated
+	is_rx         = T_RX
 CODE:
 	SvGETMAGIC(x);
 	ST(0) = boolSV(check_type(x, (my_type_t)ix));
@@ -750,7 +748,8 @@ ALIAS:
 	hash_ref   = T_HV
 	code_ref   = T_CV
 	glob_ref   = T_GV
-	regex_ref  = T_RX
+	regex_ref  = T_RX_deprecated
+	rx         = T_RX
 CODE:
 	SvGETMAGIC(x);
 	if(check_type(x, (my_type_t)ix)){

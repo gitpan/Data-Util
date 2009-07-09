@@ -1,7 +1,7 @@
 #!perl -w
 use strict;
 
-use Test::More tests => 45;
+use Test::More tests => 47;
 
 use Test::Exception;
 
@@ -47,6 +47,9 @@ ok!is_glob_ref(undef), 'is_glob_ref';
 
 ok is_regex_ref(qr/foo/), 'is_regex_ref';
 ok!is_regex_ref({}), 'is_regex_ref';
+
+ok is_rx(qr/foo/), 'is_rx';
+ok!is_rx({}),      'is_rx';
 
 SKIP:{
 	skip 'in testing perl only', 1 if PP_ONLY;
@@ -96,9 +99,9 @@ throws_ok{
 	glob_ref('*glob');
 } qr/Validation failed/;
 
-ok regex_ref(qr/foo/), 'regex_ref';
+ok rx(qr/foo/), 'rx';
 throws_ok{
-	regex_ref([]);
+	rx([]);
 } qr/Validation failed/;
 
 SKIP:{

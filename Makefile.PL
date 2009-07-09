@@ -1,4 +1,3 @@
-use 5.008_001;
 use strict;
 use warnings;
 use inc::Module::Install;
@@ -7,7 +6,8 @@ name 'Data-Util';
 
 all_from 'lib/Data/Util.pm';
 
-requires 'Exporter'    => 5.57;
+build_requires 'ExtUtils::ParseXS' => 2.19;
+
 requires 'XSLoader'    => 0.06;
 requires 'MRO::Compat' => 0.09  if $] < 5.010_000;
 

@@ -46,6 +46,10 @@ sub is_glob_ref{
 sub is_regex_ref{
 	return ref($_[0]) eq 'Regexp';
 }
+sub is_rx{
+	return ref($_[0]) eq 'Regexp';
+}
+
 sub is_instance{
 	my($obj, $class) = @_;
 	_fail('a class name', $class)
@@ -89,6 +93,11 @@ sub regex_ref{
 	return ref($_[0]) eq 'Regexp'
 		? $_[0] : _fail('a regular expression reference', $_[0]);
 }
+sub rx{
+	return ref($_[0]) eq 'Regexp'
+		? $_[0] : _fail('a regular expression reference', $_[0]);
+}
+
 sub instance{
 	my($obj, $class) = @_;
 

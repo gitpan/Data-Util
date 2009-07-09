@@ -3,14 +3,16 @@ abstract: 'A selection of utilities for data and data types'
 author:
   - 'Goro Fuji(gfx) <gfuji(at)cpan.org>.'
 build_requires:
+  ExtUtils::MakeMaker: 6.42
+  ExtUtils::ParseXS: 2.19
   Hash::Util::FieldHash::Compat: 0
   Scope::Guard: 0
   Test::Exception: 0.27
   Test::More: 0.62
 configure_requires:
-  ExtUtils::MakeMaker: 6.44
+  ExtUtils::MakeMaker: 6.42
 distribution_type: module
-generated_by: 'Module::Install version 0.77'
+generated_by: 'Module::Install version 0.91'
 license: perl
 meta-spec:
   url: http://module-build.sourceforge.net/META-spec-v1.4.html
@@ -18,12 +20,13 @@ meta-spec:
 name: Data-Util
 no_index:
   directory:
+    - example
     - inc
     - t
+    - xt
 requires:
-  Exporter: 5.57
   XSLoader: 0.06
   perl: 5.8.1
 resources:
   license: http://dev.perl.org/licenses/
-version: 0.50
+version: 0.51

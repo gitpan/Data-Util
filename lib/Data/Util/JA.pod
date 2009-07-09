@@ -7,7 +7,9 @@ Data::Util::JA - データとデータ型のためのユーティリティ集
 
 =head1 VERSION
 
-This document describes Data::Util version 0.50
+This document describes Data::Util version 0.51
+
+=for test_synopsis no warnings 'redefine';
 
 =head1 SYNOPSIS
 
@@ -42,7 +44,7 @@ This document describes Data::Util version 0.50
 	# miscelaneous
 	use Data::Util qw(:all);
 
-	my $ref_to_undef = anon_scalar();
+	my $x = anon_scalar();
 	$x = anon_scalar($x); # OK
 
 	my $stash = get_stash('Foo');

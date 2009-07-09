@@ -1,4 +1,5 @@
 .cvsignore
+.gitignore
 benchmark/Common.pm
 benchmark/curry_bench.pl
 benchmark/export_bench.pl
@@ -70,6 +71,7 @@ t/19_multiple_modifiers.t
 t/20_lexical_sub.t
 t/21_get_code_ref.t
 t/22_install2.t
+t/23_largeargs.t
 t/lib/NSClean.pm
 t/pp00_load.t
 t/pp01_refs.t
@@ -93,6 +95,8 @@ t/pp19_multiple_modifiers.t
 t/pp20_lexical_sub.t
 t/pp21_get_code_ref.t
 t/pp22_install2.t
+t/pp23_largeargs.t
 typemap
 xt/01_pod.t
 xt/02_pod-coverage.t
+xt/03_synopsis.t

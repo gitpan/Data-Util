@@ -194,12 +194,13 @@ XS(XS_Data__Util_modified){
 			args_ary[i] = ST(i); /* no need to SvREFCNT_inc() */
 		}
 
+		PUTBACK;
 		my_call_av(aTHX_ before, args_ary, items);
+		SPAGAIN;
 
 		PUSHMARK(SP);
 		XPUSHary(args_ary, 0, items);
 		PUTBACK;
-
 		call_sv(current, GIMME_V);
 
 		my_call_av(aTHX_ after, args_ary, items);

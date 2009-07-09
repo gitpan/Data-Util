@@ -13,19 +13,7 @@
 #include "str_util.h"
 
 #ifndef SvRXOK
-#define SvRXOK(sv) ((bool)(SvROK(sv) && (SvTYPE(SvRV(sv)) == SVt_PVMG) && mg_find(SvRV(sv), PERL_MAGIC_qr)))
-#endif
-
-#ifndef isGV_with_GP
-#define isGV_with_GP(maybe_gv) (isGV(maybe_gv))
-#endif
-
-#ifndef HvNAME_get
-#define HvNAME_get(hv) HvNAME(hv)
-#endif
-
-#ifndef HvNAMELEN_get
-#define HvNAMELEN_get(hv) (strlen(HvNAME_get(hv)))
+#define SvRXOK(sv) ((SvROK(sv) && (SvTYPE(SvRV(sv)) == SVt_PVMG) && mg_find(SvRV(sv), PERL_MAGIC_qr)) ? TRUE : FALSE)
 #endif
 
 #define PUSHary(ary, start, len) STMT_START{      \
