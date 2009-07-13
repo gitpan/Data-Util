@@ -350,12 +350,12 @@ my_instance_of(pTHX_ SV* const x, SV* const klass){
 			PUSHs(klass);
 			PUTBACK;
 
-			call_sv((SV*)isa, G_SCALAR);
+			call_sv((SV*)isa, G_SCALAR | G_METHOD);
 
 			SPAGAIN;
 
 			retval = SvTRUE(TOPs);
-			POPs;
+			(void)POPs;
 
 			PUTBACK;
 
@@ -462,7 +462,7 @@ my_opt_add(pTHX_
 		av_push(result_av, newRV_noinc((SV*) av_make(2, pair)));
 	}
 	else{ /* $result{$name} = $value */
-		hv_store_ent(result_hv, name, newSVsv(value), 0U);
+		(void)hv_store_ent(result_hv, name, newSVsv(value), 0U);
 	}
 }
 
@@ -615,26 +615,16 @@ my_install_sub(pTHX_ HV* const stash, const char* const name, STRLEN const namel
 
 	if(!isGV(gv)) gv_init(gv, stash, name, namelen, GV_ADDMULTI);
 
-	if(SvAMAGIC(code_ref)){
-		code_ref = newRV_inc((SV*)code);
-		sv_2mortal(code_ref);
-	}
-
-	sv_setsv_mg((SV*)gv, code_ref); /* *foo = \&bar */
+	my_gv_setsv(aTHX_ gv, (SV*)code); /* *foo = \&bar */
 
 	if(CvANON(code)
 		&& CvGV(code)                            /* under construction? */
-		&& isGV(CvGV(code))                      /* released? */
-		&& strEQ(GvNAME(CvGV(code)), "__ANON__") /* Sub::Name doesn't turn CvANON off. */){
-
-		/* save the original gv on magic slot */
-		sv_magicext((SV*)code, (SV*)CvGV(code), PERL_MAGIC_ext, &subr_name_vtbl, NULL, 0);
+		&& isGV(CvGV(code))                      /* released? */){
 
 		/* rename cv with gv */
 		CvGV(code) = gv;
 		CvANON_off(code);
 	}
-
 }
 
 static void
@@ -651,7 +641,7 @@ my_uninstall_sub(pTHX_ HV* const stash, const char* const name, STRLEN const nam
 			if(SvROK((SV*)gv) && ckWARN(WARN_MISC)){
 				Perl_warner(aTHX_ packWARN(WARN_MISC), "Constant subroutine %s uninstalled", name);
 			}
-			hv_delete(stash, name, namelen, G_DISCARD);
+			(void)hv_delete(stash, name, namelen, G_DISCARD);
 			return;
 		}
 
@@ -668,7 +658,7 @@ my_uninstall_sub(pTHX_ HV* const stash, const char* const name, STRLEN const nam
 			Perl_warner(aTHX_ packWARN(WARN_MISC), "Constant subroutine %s uninstalled", name);
 		}
 
-		hv_delete(stash, name, namelen, G_DISCARD);
+		(void)hv_delete(stash, name, namelen, G_DISCARD);
 
 		if(SvREFCNT(gv) == 0 || !(
 			   GvSV(gv)
@@ -949,8 +939,8 @@ PPCODE:
 
 		if(GIMME_V == G_ARRAY){
 			EXTEND(SP, 2);
-			mPUSHp(HvNAME_get(stash), HvNAMELEN_get(stash));
-			mPUSHp(GvNAME(gv), GvNAMELEN(gv));
+			mPUSHs(newSVpvn_share(HvNAME_get(stash), HvNAMELEN_get(stash), 0U));
+			mPUSHs(newSVpvn_share(GvNAME(gv), GvNAMELEN(gv), 0U));
 		}
 		else{
 			SV* const sv = newSVpvf("%s::%s", HvNAME_get(stash), GvNAME(gv));

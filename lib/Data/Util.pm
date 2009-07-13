@@ -4,7 +4,7 @@ use 5.008_001;
 use strict;
 #use warnings;
 
-our $VERSION = '0.51';
+our $VERSION = '0.52';
 
 use Exporter;
 our @ISA = qw(Exporter);
@@ -20,7 +20,7 @@ unless($TESTING_PERL_ONLY){
 		require XSLoader;
 		XSLoader::load(__PACKAGE__, $VERSION);
 	};
-#
+
 #	if($@ && $ENV{DATA_UTIL_DEBUG}){
 #		warn $@;
 #	}
@@ -79,7 +79,7 @@ Data::Util - A selection of utilities for data and data types
 
 =head1 VERSION
 
-This document describes Data::Util version 0.51
+This document describes Data::Util version 0.52
 
 =head1 SYNOPSIS
 
