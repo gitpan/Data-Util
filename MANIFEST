@@ -30,10 +30,12 @@ inc/Module/Install.pm
 inc/Module/Install/AuthorTests.pm
 inc/Module/Install/Base.pm
 inc/Module/Install/Can.pm
+inc/Module/Install/External.pm
 inc/Module/Install/Makefile.pm
-inc/Module/Install/MakeMaker.pm
 inc/Module/Install/Metadata.pm
 inc/Module/Install/Repository.pm
+inc/Module/Install/WriteAll.pm
+inc/Module/Install/XSUtil.pm
 lib/Data/Util.pm
 lib/Data/Util/Curry.pod
 lib/Data/Util/Error.pm
@@ -45,7 +47,6 @@ MANIFEST.SKIP
 META.yml
 misc_scalar.c
 mro_compat.h
-ppport.h
 README
 str_util.h
 subs.c
@@ -73,7 +74,7 @@ t/20_lexical_sub.t
 t/21_get_code_ref.t
 t/22_install2.t
 t/23_largeargs.t
-t/24_die_in_modifiers.t
+t/24_eval_in_modifiers.t
 t/lib/NSClean.pm
 t/pp00_load.t
 t/pp01_refs.t
@@ -98,7 +99,7 @@ t/pp20_lexical_sub.t
 t/pp21_get_code_ref.t
 t/pp22_install2.t
 t/pp23_largeargs.t
-t/pp24_die_in_modifiers.t
+t/pp24_eval_in_modifiers.t
 typemap
 xt/01_pod.t
 xt/02_pod-coverage.t
