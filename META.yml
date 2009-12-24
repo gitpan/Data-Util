@@ -1,24 +1,36 @@
---- #YAML:1.0
-name:               Data-Util
-version:            0.02
-abstract:           various utility functions
+---
+abstract: 'A selection of utilities for data and data types'
 author:
-    - Lukas Mai <l.mai@web.de>
-license:            perl
-distribution_type:  module
-configure_requires:
-    ExtUtils::MakeMaker:  0
+  - 'Goro Fuji(gfx) <gfuji(at)cpan.org>.'
 build_requires:
-    ExtUtils::MakeMaker:  0
-requires:
-    Defaults::Mauke:  0
-    Exporter:         5.57
-    Test::More:       0
-no_index:
-    directory:
-        - t
-        - inc
-generated_by:       ExtUtils::MakeMaker version 6.55_02
+  ExtUtils::MakeMaker: 6.42
+  ExtUtils::ParseXS: 2.21
+  Hash::Util::FieldHash::Compat: 0
+  Scope::Guard: 0
+  Test::Exception: 0.27
+  Test::More: 0.62
+configure_requires:
+  Devel::PPPort: 0
+  ExtUtils::CBuilder: 0.21
+  ExtUtils::MakeMaker: 6.42
+distribution_type: module
+generated_by: 'Module::Install version 0.91'
+license: perl
 meta-spec:
-    url:      http://module-build.sourceforge.net/META-spec-v1.4.html
-    version:  1.4
+  url: http://module-build.sourceforge.net/META-spec-v1.4.html
+  version: 1.4
+module_name: Data::Util
+name: Data-Util
+no_index:
+  directory:
+    - example
+    - inc
+    - t
+    - xt
+requires:
+  XSLoader: 0.1
+  perl: 5.8.1
+resources:
+  license: http://dev.perl.org/licenses/
+  repository: git://github.com/gfx/Perl-Data-Util.git
+version: 0.55
