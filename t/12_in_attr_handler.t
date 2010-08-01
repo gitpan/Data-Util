@@ -1,6 +1,7 @@
 #!perl -w
 
 use strict;
+use if ($] >= 5.011), 'Test::More', 'skip_all' => 'This test is for old perls';
 use Test::More tests => 4;
 use Test::Exception;
 

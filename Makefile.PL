@@ -1,7 +1,7 @@
 use strict;
 use warnings;
 use inc::Module::Install;
-use Module::Install::XSUtil 0.19;
+use Module::Install::XSUtil 0.25;
 
 all_from 'lib/Data/Util.pm';
 
@@ -14,27 +14,25 @@ test_requires 'Scope::Guard';
 
 author_tests 'xt', 'author/t';
 
-my $use_xs = cc_available();
-
-if($use_xs){
+if(want_xs()){
     use_ppport 3.19;
     cc_warnings;
-	cc_define '-DINLINE_STR_EQ';
-	test_requires 'Hash::Util::FieldHash::Compat';
+    cc_define '-DINLINE_STR_EQ';
+    test_requires 'Hash::Util::FieldHash::Compat';
 }
 else{
-	requires 'Hash::Util::FieldHash::Compat';
+    requires 'Hash::Util::FieldHash::Compat';
 }
 
 auto_set_repository;
 
 clean_files  q{
-	Data-Util-*
-	*.stackdump
-	*.gcov *.gcda *.gcno
-	*.out
-	nytprof
-	cover_db
+    Data-Util-*
+    *.stackdump
+    *.gcov *.gcda *.gcno
+    *.out
+    nytprof
+    cover_db
 };
 
 WriteAll check_nmake => 0;

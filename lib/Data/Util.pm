@@ -4,7 +4,7 @@ use 5.008_001;
 use strict;
 #use warnings;
 
-our $VERSION = '0.56';
+our $VERSION = '0.57';
 
 use Exporter;
 our @ISA = qw(Exporter);
@@ -79,7 +79,7 @@ Data::Util - A selection of utilities for data and data types
 
 =head1 VERSION
 
-This document describes Data::Util version 0.56
+This document describes Data::Util version 0.57
 
 =head1 SYNOPSIS
 
@@ -144,8 +144,7 @@ including functions for subroutines and symbol table hashes (stashes).
 The implementation of this module is both Pure Perl and XS, so if you have a C
 compiler, all the functions this module provides are really faster.
 
-
-There are many benchmarks in F<DIST-DIR/benchmark/> directory.
+There are many benchmarks in the F<DIST-DIR/benchmark/> directory.
 
 =head1 INTERFACE
 
@@ -467,7 +466,7 @@ If true, C<Data::Util> uses the Pure Perl implementation.
 Perl 5.8.1 or later.
 
 If you have a C compiler, you can use the XS backend,
-but the Pure Perl backend is also available if you have no C compiler.
+but the Pure Perl backend is also available if you have no C compilers.
 
 =head1 BUGS AND LIMITATIONS
 
@@ -497,13 +496,15 @@ L<Class::Method::Modifiers>.
 
 L<Data::OptList>.
 
+L<Mouse>
+
 =head1 AUTHOR
 
 Goro Fuji(gfx) E<lt>gfuji(at)cpan.orgE<gt>.
 
 =head1 LICENSE AND COPYRIGHT
 
-Copyright (c) 2008-2009, Goro Fuji E<lt>gfuji(at)cpan.orgE<gt>. Some rights reserved.
+Copyright (c) 2008-2010, Goro Fuji E<lt>gfuji(at)cpan.orgE<gt>. All rights reserved.
 
 This module is free software; you can redistribute it and/or
 modify it under the same terms as Perl itself.
