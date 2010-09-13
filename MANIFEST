@@ -15,7 +15,6 @@ benchmark/modifier_bench.pl
 benchmark/modify_bench.pl
 benchmark/number_bench.pl
 benchmark/ref_bench.pl
-c99portability.h
 Changes
 data-util.h
 DataUtil.xs
@@ -98,6 +97,7 @@ t/pp22_install2.t
 t/pp23_largeargs.t
 t/pp24_eval_in_modifiers.t
 typemap
+xshelper.h
 xt/01_pod.t
 xt/02_pod-coverage.t
 xt/03_synopsis.t
