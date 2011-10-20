@@ -3,7 +3,7 @@ package Module::Install::XSUtil;
 
 use 5.005_03;
 
-$VERSION = '0.32';
+$VERSION = '0.42';
 
 use Module::Install::Base;
 @ISA     = qw(Module::Install::Base);
@@ -18,18 +18,20 @@ use File::Find;
 use constant _VERBOSE => $ENV{MI_VERBOSE} ? 1 : 0;
 
 my %ConfigureRequires = (
-    # currently nothing
+    'ExtUtils::ParseXS' => 2.21,
 );
 
 my %BuildRequires = (
-    'ExtUtils::ParseXS' => 2.21, # the newer, the better
 );
 
 my %Requires = (
-    'XSLoader' => 0.10, # the newer, the better
+    'XSLoader' => 0.02,
 );
 
 my %ToInstall;
+
+my $UseC99       = 0;
+my $UseCplusplus = 0;
 
 sub _verbose{
     print STDERR q{# }, @_, "\n";
@@ -64,7 +66,7 @@ sub _xs_initialize{
                 $self->makemaker_args->{OPTIMIZE} = '-Zi';
             }
             else{
-                $self->makemaker_args->{OPTIMIZE} = '-g';
+                $self->makemaker_args->{OPTIMIZE} = '-g -ggdb -g3';
             }
             $self->cc_define('-DXS_ASSERT');
         }
@@ -94,8 +96,12 @@ sub _is_msvc{
 
     my $want_xs;
     sub want_xs {
-        my $default = @_ ? shift : 1; # you're using this module, you /must/ want XS by default
+        my($self, $default) = @_;
         return $want_xs if defined $want_xs;
+
+        # you're using this module, you must want XS by default
+        # unless PERL_ONLY is true.
+        $default = !$ENV{PERL_ONLY} if not defined $default;
 
         foreach my $arg(@ARGV){
             if($arg eq '--pp'){
@@ -180,10 +186,14 @@ sub cc_warnings{
 
         my $gccversion = _gccversion();
         if($gccversion >= 4.0){
-            # Note: MSVC++ doesn't support C99, so -Wdeclaration-after-statement helps
-            # ensure C89 specs.
-            $self->cc_append_to_ccflags(qw(-Wextra -Wdeclaration-after-statement));
-            if($gccversion >= 4.1) {
+            $self->cc_append_to_ccflags(qw(-Wextra));
+            if(!($UseC99 or $UseCplusplus)) {
+                # Note: MSVC++ doesn't support C99,
+                # so -Wdeclaration-after-statement helps
+                # ensure C89 specs.
+                $self->cc_append_to_ccflags(qw(-Wdeclaration-after-statement));
+            }
+            if($gccversion >= 4.1 && !$UseCplusplus) {
                 $self->cc_append_to_ccflags(qw(-Wc++-compat));
             }
         }
@@ -212,6 +222,8 @@ sub c99_available {
     my $tmpfile = File::Temp->new(SUFFIX => '.c');
 
     $tmpfile->print(<<'C99');
+// include a C99 header
+#include <stdbool.h>
 inline // a C99 keyword with C99 style comments
 int test_c99() {
     int i = 0;
@@ -223,7 +235,7 @@ C99
 
     $tmpfile->close();
 
-    system $Config{cc}, '-c', $tmpfile->filename;
+    system "$Config{cc} -c " . $tmpfile->filename;
 
     (my $objname = File::Basename::basename($tmpfile->filename)) =~ s/\Q.c\E$/$Config{_o}/;
     unlink $objname or warn "Cannot unlink $objname (ignored): $!";
@@ -238,7 +250,18 @@ sub requires_c99 {
         exit;
     }
     $self->_xs_initialize();
+    $UseC99 = 1;
+    return;
+}
 
+sub requires_cplusplus {
+    my($self) = @_;
+    if(!$self->cc_available) {
+        warn "This distribution requires a C++ compiler, but $Config{cc} seems not to support C++, stopped.\n";
+        exit;
+    }
+    $self->_xs_initialize();
+    $UseCplusplus = 1;
     return;
 }
 
@@ -312,7 +335,7 @@ sub cc_assert_lib {
 
     if ( ! $self->{xsu_loaded_checklib} ) {
         my $loaded_lib = 0;
-        foreach my $checklib qw(inc::Devel::CheckLib Devel::CheckLib) {
+        foreach my $checklib (qw(inc::Devel::CheckLib Devel::CheckLib)) {
             eval "use $checklib 0.4";
             if (!$@) {
                 $loaded_lib = 1;
@@ -435,9 +458,10 @@ sub cc_src_paths{
         }
     }, @dirs);
 
+    my $xs_to = $UseCplusplus ? '.cpp' : '.c';
     foreach my $src_file(@src_files){
         my $c = $src_file;
-        if($c =~ s/ \.xs \z/.c/xms){
+        if($c =~ s/ \.xs \z/$xs_to/xms){
             $XS_ref->{$src_file} = $c;
 
             _verbose "xs: $src_file" if _VERBOSE;
@@ -548,10 +572,14 @@ sub _extract_functions_from_header_file{
         $cppflags   .= ' ' . $mm->{DEFINE} if $mm->{DEFINE};
 
         my $add_include = _is_msvc() ? '-FI' : '-include';
-        $cppflags   .= ' ' . join ' ', map{ qq{$add_include "$_"} } qw(EXTERN.h perl.h XSUB.h);
+        $cppflags   .= ' ' . join ' ',
+            map{ qq{$add_include "$_"} } qw(EXTERN.h perl.h XSUB.h);
 
         my $cppcmd = qq{$Config{cpprun} $cppflags $h_file};
-
+        # remove all the -arch options to workaround gcc errors:
+        #       "-E, -S, -save-temps and -M options are not allowed
+        #        with multiple -arch flags"
+        $cppcmd =~ s/ -arch \s* \S+ //xmsg;
         _verbose("extract functions from: $cppcmd") if _VERBOSE;
         `$cppcmd`;
     };
@@ -653,7 +681,6 @@ sub _xshelper_h {
 :
 :#define PERL_NO_GET_CONTEXT /* we want efficiency */
 :#include <EXTERN.h>
-:
 :#include <perl.h>
 :#define NO_XSLOCKS /* for exceptions */
 :#include <XSUB.h>
@@ -679,8 +706,8 @@ sub _xshelper_h {
 :#endif
 :
 :#ifndef LIKELY /* they are just a compiler's hint */
-:#define LIKELY(x)   (x)
-:#define UNLIKELY(x) (x)
+:#define LIKELY(x)   (!!(x))
+:#define UNLIKELY(x) (!!(x))
 :#endif
 :
 :#ifndef newSVpvs_share
@@ -710,8 +737,10 @@ sub _xshelper_h {
 :#define LooksLikeNumber(x) (SvPOKp(x) ? looks_like_number(x) : (I32)SvNIOKp(x))
 :#endif
 :
-:#define newAV_mortal() (AV*)sv_2mortal((SV*)newAV())
-:#define newHV_mortal() (HV*)sv_2mortal((SV*)newHV())
+:#define newAV_mortal()         (AV*)sv_2mortal((SV*)newAV())
+:#define newHV_mortal()         (HV*)sv_2mortal((SV*)newHV())
+:#define newRV_inc_mortal(sv)   sv_2mortal(newRV_inc(sv))
+:#define newRV_noinc_mortal(sv) sv_2mortal(newRV_noinc(sv))
 :
 :#define DECL_BOOT(name) EXTERN_C XS(CAT2(boot_, name))
 :#define CALL_BOOT(name) STMT_START {            \
@@ -728,7 +757,7 @@ package
     MY;
 
 # XXX: We must append to PM inside ExtUtils::MakeMaker->new().
-sub init_PM{
+sub init_PM {
     my $self = shift;
 
     $self->SUPER::init_PM(@_);
@@ -755,7 +784,22 @@ sub const_cccmd {
 
     return $cccmd
 }
+
+sub xs_c {
+    my($self) = @_;
+    my $mm = $self->SUPER::xs_c();
+    $mm =~ s/ \.c /.cpp/xmsg if $UseCplusplus;
+    return $mm;
+}
+
+sub xs_o {
+    my($self) = @_;
+    my $mm = $self->SUPER::xs_o();
+    $mm =~ s/ \.c /.cpp/xmsg if $UseCplusplus;
+    return $mm;
+}
+
 1;
 __END__
 
-#line 969
+#line 1025

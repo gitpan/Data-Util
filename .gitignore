@@ -8,6 +8,7 @@ Makefile*
 !Makefile.PL
 *blib
 META.yml
+MYMETA.*
 inc/
 MANIFEST
 DataUtil.c
@@ -15,3 +16,4 @@ DataUtil.c
 ppport.h
 xshelper.h
 *.stackdump
+*~

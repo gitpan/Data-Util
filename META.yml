@@ -4,17 +4,18 @@ author:
   - 'Goro Fuji(gfx) <gfuji(at)cpan.org>.'
 build_requires:
   Devel::PPPort: 3.19
-  ExtUtils::MakeMaker: 6.42
-  ExtUtils::ParseXS: 2.21
+  ExtUtils::MakeMaker: 6.59
   Hash::Util::FieldHash::Compat: 0
   Scope::Guard: 0
   Test::Exception: 0.27
   Test::More: 0.62
 configure_requires:
   Devel::PPPort: 3.19
-  ExtUtils::MakeMaker: 6.42
+  ExtUtils::MakeMaker: 6.59
+  ExtUtils::ParseXS: 2.21
 distribution_type: module
-generated_by: 'Module::Install version 1.00'
+dynamic_config: 1
+generated_by: 'Module::Install version 1.04'
 license: perl
 meta-spec:
   url: http://module-build.sourceforge.net/META-spec-v1.4.html
@@ -28,9 +29,9 @@ no_index:
     - t
     - xt
 requires:
-  XSLoader: 0.1
+  XSLoader: 0.02
   perl: 5.8.1
 resources:
   license: http://dev.perl.org/licenses/
   repository: git://github.com/gfx/Perl-Data-Util.git
-version: 0.58
+version: 0.59
